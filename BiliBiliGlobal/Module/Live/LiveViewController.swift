@@ -118,7 +118,7 @@ extension WebRequest.EndPoint {
     static let liveRoom = "https://api.live.bilibili.com/xlive/web-ucenter/v1/xfetter/GetWebList"
     static let hotLive = "https://api.live.bilibili.com/xlive/web-interface/v1/second/getListByArea"
     static let areaLive = "https://api.live.bilibili.com/xlive/web-interface/v1/second/getList"
-    static let recommandLive = "https://api.live.bilibili.com/xlive/web-interface/v1/second/getUserRecommend"
+    static let recommandLive = "https://api.live.bilibili.com/xlive/web-interface/v1/webMain/getMoreRecList"
 }
 
 extension WebRequest {
@@ -149,12 +149,35 @@ extension WebRequest {
     }
 
     static func requestRecommandLiveRoom(page: Int) async throws -> [AreaLiveRoom] {
-        struct Resp: Codable {
-            let list: [AreaLiveRoom]
+        struct RecommendedRoom: Codable {
+            let title: String
+            let roomid: Int
+            let uname: String
+            let cover: String
+            let face: URL?
+            let area_v2_parent_name: String
+            let area_v2_name: String
+
+            func asAreaLiveRoom() -> AreaLiveRoom {
+                AreaLiveRoom(title: title,
+                             roomid: roomid,
+                             uname: uname,
+                             system_cover: cover,
+                             face: face,
+                             user_cover: URL(string: cover),
+                             parent_name: area_v2_parent_name,
+                             area_name: area_v2_name,
+                             area_v2_name: area_v2_name)
+            }
         }
 
-        let resp: Resp = try await request(url: EndPoint.recommandLive, parameters: ["platform": "web", "page_size": 30, "page": page])
-        return resp.list
+        struct Resp: Codable {
+            let recommend_room_list: [RecommendedRoom]
+        }
+
+        let resp: Resp = try await request(url: EndPoint.recommandLive,
+                                           parameters: ["platform": "web", "web_location": 333_1007])
+        return resp.recommend_room_list.map { $0.asAreaLiveRoom() }
     }
 }
 
