@@ -100,10 +100,6 @@ class BilibiliVideoResourceLoaderDelegate: NSObject, AVAssetResourceLoaderDelega
         return "video codecs: \(videoCodec), audio: \(audioCodec)"
     }
 
-    // 黑名单：不支持的编码
-    // 注：经过测试，avc1.640034 (H.264 High 5.2) 在现代设备上是支持的，已移除
-    let videoCodecBlackList: [String] = []
-
     private func reset() {
         playlists.removeAll()
         audioRenditionIndex = 0
@@ -133,7 +129,7 @@ class BilibiliVideoResourceLoaderDelegate: NSObject, AVAssetResourceLoaderDelega
     }
 
     private func addVideoPlayBackInfo(info: VideoPlayURLInfo.DashInfo.DashMediaInfo, url: String, duration: Int) {
-        // 黑名单已经在 setBilibili 中过滤了，这里不需要再检查
+        guard info.isSupportedByTVOS else { return }
         let subtitlePlaceHolder = hasSubtitle ? ",SUBTITLES=\"subs\"" : ""
         let isDolby = info.id == MediaQualityEnum.quality_hdr_dolby.qn
         let isHDR10 = info.id == 125
@@ -276,7 +272,6 @@ class BilibiliVideoResourceLoaderDelegate: NSObject, AVAssetResourceLoaderDelega
     }
 
     private func addAudioPlayBackInfo(info: VideoPlayURLInfo.DashInfo.DashMediaInfo, url: String, duration: Int) {
-        guard !videoCodecBlackList.contains(info.codecs) else { return }
         let isFirst = !hasAudioInMasterListAdded
         let defaultStr = isFirst ? "YES" : "NO"
 
@@ -373,16 +368,21 @@ class BilibiliVideoResourceLoaderDelegate: NSObject, AVAssetResourceLoaderDelega
             }
         }
 
-        // 先过滤黑名单编码（避免后续强制模式选择了被黑名单的流）
-        videos = videos.filter { !videoCodecBlackList.contains($0.codecs) }
+        // Filter known-unplayable streams before honoring a manual stream index.
+        // In particular, AppleTV6,2 stops immediately on Bilibili's 4K60 AVC
+        // High Profile Level 5.2 rendition (`avc1.640034`).
+        videos = videos.filter(\.isSupportedByTVOS)
 
         // 智能画质模式：
         // 1. 如果用户手动选择了具体的流（streamIndex 不为 nil），只使用该流
         // 2. 如果用户手动选择了画质（maxQuality 不为 nil），只保留该画质的流（强制模式）
         // 3. 如果是默认模式，使用设置限制并保留多级画质作为后备（自适应模式）
-        if let streamIndex = streamIndex, streamIndex < info.dash.video.count {
-            // 用户选择了具体的流，直接使用该流
-            videos = [info.dash.video[streamIndex]]
+        if let streamIndex,
+           info.dash.video.indices.contains(streamIndex),
+           let selectedStream = videos.first(where: { $0 == info.dash.video[streamIndex] })
+        {
+            // 用户选择了具体的、受支持的流，直接使用该流。
+            videos = [selectedStream]
         } else if let maxQuality = maxQuality {
             // 用户选择了画质，保留该画质的最高码率流
             // （手动切画质时一般会带 streamIndex，走上面精确选流；这里是无 streamIndex 的兜底）
@@ -931,6 +931,13 @@ extension VideoPlayURLInfo.DashInfo.DashMediaInfo {
 
     var isHevc: Bool {
         return codecs.starts(with: "hev") || codecs.starts(with: "hvc") || codecs.starts(with: "dvh1")
+    }
+
+    /// Apple TV 4K (1st generation) advertises 4K60 support for H.264 Main
+    /// and HEVC Main/Main 10. Bilibili's 4K60 AVC `avc1.640034` is H.264 High
+    /// Profile Level 5.2 and causes AVPlayer to stop before decoding begins.
+    var isSupportedByTVOS: Bool {
+        !codecs.lowercased().hasPrefix("avc1.640034")
     }
 }
 

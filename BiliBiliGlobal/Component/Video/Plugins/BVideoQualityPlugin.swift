@@ -38,7 +38,7 @@ class BVideoQualityPlugin: NSObject, CommonPlayerPlugin {
 
     private func extractAvailableQualities() {
         let supportFormats = playData.videoPlayURLInfo.support_formats
-        let videoStreams = playData.videoPlayURLInfo.dash.video
+        let videoStreams = playData.videoPlayURLInfo.dash.video.filter(\.isSupportedByTVOS)
 
         // 为每个视频流创建一个 QualityOption
         availableQualities = videoStreams.enumerated().map { index, stream in
