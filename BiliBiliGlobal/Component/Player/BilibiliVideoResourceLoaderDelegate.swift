@@ -896,7 +896,11 @@ enum BVideoUrlUtils {
     }
 
     static func convertToVTT(subtitle: [SubtitleContent]) -> String {
-        var vtt = "WEBVTT\n\n"
+        // This VTT is delivered as an HLS subtitle segment, not as a stand-alone
+        // WebVTT file. AVFoundation requires HLS WebVTT to map local cue time to
+        // the media timeline; without this header it selects the rendition but
+        // rejects its samples (WebVTTSamples -16012).
+        var vtt = "WEBVTT\nX-TIMESTAMP-MAP=LOCAL:00:00:00.000,MPEGTS:0\n\n"
         for (index, model) in subtitle.enumerated() {
             let from = convertVTTFormate(model.from)
             let to = convertVTTFormate(model.to)
