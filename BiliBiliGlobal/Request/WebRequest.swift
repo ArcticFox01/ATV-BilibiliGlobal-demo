@@ -284,13 +284,34 @@ enum WebRequest {
 // MARK: - Video
 
 extension WebRequest {
+    private static var englishBangumiWebParameters: [String: Any] {
+        [
+            "platform": "web",
+            "web_location": 1_430_654,
+            "x-bili-device-req-json": #"{"platform":"web","device":"pc","spmid":"333.337","mobi_app":"web_i"}"#,
+            "x-bili-locale-json": #"{"c_locale":{"language":"en"},"always_translate":true}"#,
+        ]
+    }
+
+    private static let englishBangumiReferer = "https://www.bilibili.com/en/bangumi/"
+
+    private static func englishBangumiParameters(_ parameters: [String: Any]) -> [String: Any] {
+        englishBangumiWebParameters.merging(parameters) { _, requestedValue in requestedValue }
+    }
+
     static func requestBangumiInfo(epid: Int) async throws -> BangumiInfo {
-        let info: BangumiInfo = try await request(url: "https://api.bilibili.com/pgc/view/web/season", parameters: ["ep_id": epid], dataObj: "result")
+        let info: BangumiInfo = try await request(url: "https://api.bilibili.com/pgc/view/web/season",
+                                                  parameters: englishBangumiParameters(["ep_id": epid]),
+                                                  headers: ["Referer": englishBangumiReferer],
+                                                  dataObj: "result")
         return info
     }
 
     static func requestBangumiInfo(seasonID: Int) async throws -> BangumiInfo {
-        let res: BangumiInfo = try await request(url: "https://api.bilibili.com/pgc/view/web/season", parameters: ["season_id": seasonID], dataObj: "result")
+        let res: BangumiInfo = try await request(url: "https://api.bilibili.com/pgc/view/web/season",
+                                                 parameters: englishBangumiParameters(["season_id": seasonID]),
+                                                 headers: ["Referer": englishBangumiReferer],
+                                                 dataObj: "result")
         return res
     }
 
@@ -953,9 +974,12 @@ struct BangumiInfo: Codable, Hashable {
         let cover: URL
         let long_title: String
         let title: String
+        let bvid: String?
+        let duration: Int?
+        let pub_time: Int?
 
         enum CodingKeys: String, CodingKey {
-            case id, aid, cid, cover, long_title, title
+            case id, aid, cid, cover, long_title, title, bvid, duration, pub_time
         }
 
         init(from decoder: Swift.Decoder) throws {
@@ -966,6 +990,9 @@ struct BangumiInfo: Codable, Hashable {
             cover = try container.decode(URL.self, forKey: .cover)
             long_title = try container.decodeIfPresent(String.self, forKey: .long_title) ?? ""
             title = try container.decode(String.self, forKey: .title)
+            bvid = try container.decodeIfPresent(String.self, forKey: .bvid)
+            duration = try container.decodeIfPresent(Int.self, forKey: .duration)
+            pub_time = try container.decodeIfPresent(Int.self, forKey: .pub_time)
         }
     }
 
@@ -977,6 +1004,18 @@ struct BangumiInfo: Codable, Hashable {
         }
 
         let progress: Progress?
+        let follow: Int?
+    }
+
+    struct Stat: Codable, Hashable {
+        let coins: Int?
+        let danmakus: Int?
+        let favorite: Int?
+        let favorites: Int?
+        let likes: Int?
+        let reply: Int?
+        let share: Int?
+        let views: Int?
     }
 
     struct Section: Codable, Hashable {
@@ -988,6 +1027,11 @@ struct BangumiInfo: Codable, Hashable {
     let episodes: [Episode] // 正片剧集列表
     let user_status: UserStatus?
     let section: [Section]?
+    let title: String?
+    let season_title: String?
+    let cover: URL?
+    let evaluate: String?
+    let stat: Stat?
 
     func findEpisodeById(_ epid: Int) -> Episode? {
         if let epi = episodes.first(where: { $0.id == epid }) {

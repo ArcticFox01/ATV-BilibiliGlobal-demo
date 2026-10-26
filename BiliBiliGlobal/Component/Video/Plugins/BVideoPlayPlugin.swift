@@ -159,10 +159,35 @@ class BVideoPlayPlugin: NSObject, CommonPlayerPlugin {
             .first(where: { $0.identifier == UIMenu.Identifier(rawValue: "setting") }),
             let index = current.firstIndex(of: setting)
         {
-            current[index] = setting.replacingChildren(setting.children + [action])
+            let positions = [(80, "Low"), (70, "Raised"), (55, "High")]
+            let subtitlePosition = UIMenu(title: "Subtitle Position",
+                                          image: UIImage(systemName: "text.line.first.and.arrowtriangle.forward"),
+                                          options: [.displayInline, .singleSelection],
+                                          children: positions.map { position, title in
+                                              UIAction(title: title,
+                                                       state: Settings.subtitleVerticalPosition == position ? .on : .off)
+                                              { [weak self] _ in
+                                                  Settings.subtitleVerticalPosition = position
+                                                  Task { @MainActor [weak self] in
+                                                      self?.refreshSubtitlePosition()
+                                                  }
+                                              }
+                                          })
+            current[index] = setting.replacingChildren(setting.children + [action, subtitlePosition])
             return []
         }
         return []
+    }
+
+    @MainActor
+    private func refreshSubtitlePosition() {
+        guard let item = playerVC?.player?.currentItem,
+              let group = item.asset.mediaSelectionGroup(forMediaCharacteristic: .legible),
+              let selected = item.currentMediaSelection.selectedMediaOption(in: group)
+        else { return }
+        playerDelegate?.refreshSubtitlePosition()
+        item.select(nil, in: group)
+        item.select(selected, in: group)
     }
 
     private func probeCDN() {

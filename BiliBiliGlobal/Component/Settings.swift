@@ -51,6 +51,9 @@ enum Settings {
     @UserDefaultCodable("Settings.danmuDuration", defaultValue: 8)
     static var danmuDuration: Double
 
+    @UserDefault("Settings.subtitleVerticalPosition", defaultValue: 70)
+    static var subtitleVerticalPosition: Int
+
     @UserDefault("Settings.losslessAudio", defaultValue: false)
     static var losslessAudio: Bool
 

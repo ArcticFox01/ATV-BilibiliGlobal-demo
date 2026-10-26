@@ -522,6 +522,10 @@ class BilibiliVideoResourceLoaderDelegate: NSObject, AVAssetResourceLoaderDelega
         handleCustomPlaylistRequest(loadingRequest)
         return true
     }
+
+    func refreshSubtitlePosition() {
+        subtitles.removeAll()
+    }
 }
 
 private extension BilibiliVideoResourceLoaderDelegate {
@@ -897,7 +901,7 @@ enum BVideoUrlUtils {
             let from = convertVTTFormate(model.from)
             let to = convertVTTFormate(model.to)
             // hours:minutes:seconds.millisecond
-            vtt.append("\(from) --> \(to)\n\(model.content)\n\n")
+            vtt.append("\(from) --> \(to) line:\(Settings.subtitleVerticalPosition)% position:50% align:center\n\(model.content)\n\n")
         }
         return vtt
     }

@@ -181,8 +181,55 @@ class VideoDetailViewController: UIViewController {
         lastPlayTitle = episode.title + " " + episode.long_title
     }
 
+    private func makeBangumiDetail(_ info: BangumiInfo) -> VideoDetail {
+        let episode = info.findEpisodeById(epid) ?? info.episodes.first
+        let stat = info.stat
+        let view = VideoDetail.Info(
+            aid: aid,
+            cid: cid,
+            title: info.title ?? info.season_title ?? episode?.title ?? "",
+            videos: nil,
+            pic: info.cover ?? episode?.cover,
+            desc: info.evaluate,
+            owner: VideoOwner(mid: 0, name: "BiliBili Global", face: nil),
+            pages: nil,
+            dynamic: nil,
+            bvid: episode?.bvid,
+            duration: (episode?.duration ?? 0) / 1_000,
+            pubdate: episode?.pub_time,
+            ugc_season: nil,
+            redirect_url: nil,
+            stat: VideoDetail.Info.Stat(
+                favorite: stat?.favorites ?? stat?.favorite ?? 0,
+                coin: stat?.coins ?? 0,
+                like: stat?.likes ?? 0,
+                share: stat?.share ?? 0,
+                danmaku: stat?.danmakus ?? 0,
+                view: stat?.views ?? 0
+            )
+        )
+        return VideoDetail(
+            View: view,
+            Related: [],
+            Card: VideoDetail.Owner(
+                following: info.user_status?.follow == 1,
+                follower: nil
+            )
+        )
+    }
+
+    private func usesEnglishSeasonMetadata(_ info: BangumiInfo) -> Bool {
+        guard let title = info.title,
+              let evaluate = info.evaluate
+        else {
+            return false
+        }
+        return title.range(of: "[A-Za-z]", options: .regularExpression) != nil &&
+            evaluate.range(of: "[A-Za-z]", options: .regularExpression) != nil
+    }
+
     private func setupPageRangeCollectionView() {
-        let titleLabel = pageView.subviews.compactMap { $0 as? UILabel }.first { $0.text == "视频选集" }!
+        let titleLabel = pageView.subviews.compactMap { $0 as? UILabel }.first { $0.text == "Episodes" }!
 
         pageView.addSubview(pageRangeCollectionView)
 
@@ -273,9 +320,11 @@ class VideoDetailViewController: UIViewController {
         setPageRangeCollectionViewHidden(true)
         ugcView.isHidden = true
         do {
+            var bangumiInfo: BangumiInfo?
             if seasonId > 0 {
                 isBangumi = true
                 let info = try await WebRequest.requestBangumiInfo(seasonID: seasonId)
+                bangumiInfo = info
                 subType = info.type
                 if let epi = info.episodes.first(where: { $0.id == info.user_status?.progress?.last_ep_id }) ?? info.episodes.first ?? info.section?.first?.episodes.first {
                     aid = epi.aid
@@ -287,6 +336,7 @@ class VideoDetailViewController: UIViewController {
             } else if epid > 0 {
                 isBangumi = true
                 let info = try await WebRequest.requestBangumiInfo(epid: epid)
+                bangumiInfo = info
                 seasonId = info.season_id
                 subType = info.type
                 if let epi = info.findEpisodeById(epid) ?? info.episodes.first {
@@ -298,20 +348,31 @@ class VideoDetailViewController: UIViewController {
                 }
                 pages = info.episodes.map({ VideoPage(cid: $0.cid, page: $0.aid, epid: $0.id, from: "", part: $0.title + " " + $0.long_title) })
             }
-            let data = try await WebRequest.requestDetailVideo(aid: aid)
-            self.data = data
-
-            if let redirect = data.View.redirect_url?.lastPathComponent, redirect.starts(with: "ep"), let id = Int(redirect.dropFirst(2)), !isBangumi {
-                isBangumi = true
-                epid = id
-                let info = try await WebRequest.requestBangumiInfo(epid: epid)
-                seasonId = info.season_id
-                subType = info.type
-                pages = info.episodes.map({ VideoPage(cid: $0.cid, page: $0.aid, epid: $0.id, from: "", part: $0.title + " " + $0.long_title) })
-                if let epi = info.episodes.first(where: { $0.id == epid }) {
-                    updatePlayProgressIfNeeded(progress: info.user_status?.progress, episode: epi)
+            let data: VideoDetail
+            if let bangumiInfo, usesEnglishSeasonMetadata(bangumiInfo) {
+                data = makeBangumiDetail(bangumiInfo)
+            } else {
+                let detail = try await WebRequest.requestDetailVideo(aid: aid)
+                if !isBangumi,
+                   let redirect = detail.View.redirect_url?.lastPathComponent,
+                   redirect.starts(with: "ep"),
+                   let id = Int(redirect.dropFirst(2))
+                {
+                    isBangumi = true
+                    epid = id
+                    let info = try await WebRequest.requestBangumiInfo(epid: epid)
+                    seasonId = info.season_id
+                    subType = info.type
+                    pages = info.episodes.map({ VideoPage(cid: $0.cid, page: $0.aid, epid: $0.id, from: "", part: $0.title + " " + $0.long_title) })
+                    if let epi = info.episodes.first(where: { $0.id == epid }) {
+                        updatePlayProgressIfNeeded(progress: info.user_status?.progress, episode: epi)
+                    }
+                    data = makeBangumiDetail(info)
+                } else {
+                    data = detail
                 }
             }
+            self.data = data
             if !isBangumi {
                 let playInfo = try await WebRequest.requestPlayerInfo(aid: aid, cid: cid == 0 ? data.View.cid : cid)
                 if cid == 0 {
