@@ -21,6 +21,7 @@ class BVideoQualityPlugin: NSObject, CommonPlayerPlugin {
         let bandwidth: Int // 该流的码率（bps）
         let codec: String // 编码格式（如 avc1, hev1）
         let streamIndex: Int? // 在 dash.video 数组中的索引（用于精确定位流）
+        let isSupported: Bool
     }
 
     init(detailData: PlayerDetailData, onQualityChange: @escaping (Int, Int?) -> Void) {
@@ -38,7 +39,7 @@ class BVideoQualityPlugin: NSObject, CommonPlayerPlugin {
 
     private func extractAvailableQualities() {
         let supportFormats = playData.videoPlayURLInfo.support_formats
-        let videoStreams = playData.videoPlayURLInfo.dash.video.filter(\.isSupportedByTVOS)
+        let videoStreams = playData.videoPlayURLInfo.dash.video
 
         // 为每个视频流创建一个 QualityOption
         availableQualities = videoStreams.enumerated().map { index, stream in
@@ -66,7 +67,8 @@ class BVideoQualityPlugin: NSObject, CommonPlayerPlugin {
                 description: format?.display_desc ?? "",
                 bandwidth: stream.bandwidth,
                 codec: stream.codecs,
-                streamIndex: index
+                streamIndex: index,
+                isSupported: stream.isSupportedByTVOS
             )
         }
 
@@ -126,8 +128,12 @@ class BVideoQualityPlugin: NSObject, CommonPlayerPlugin {
                     streamInfo = String(format: "%.1f Mbps", mbps)
                 }
 
+                let title = quality.isSupported
+                    ? streamInfo
+                    : "\(streamInfo.replacingOccurrences(of: ", ", with: " ")) (Unsupported)"
                 return UIAction(
-                    title: streamInfo,
+                    title: title,
+                    attributes: quality.isSupported ? [] : [.disabled],
                     state: isCurrentStream ? .on : .off
                 ) { [weak self] _ in
                     self?.switchQuality(to: quality)
