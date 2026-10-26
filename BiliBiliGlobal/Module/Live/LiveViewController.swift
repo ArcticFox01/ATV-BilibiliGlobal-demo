@@ -27,6 +27,17 @@ class LiveViewController: CategoryViewController {
         ]
         super.viewDidLoad()
     }
+
+    override func setViewController(vc: UIViewController) {
+        let changedCategory = currentViewController !== vc
+        super.setViewController(vc: vc)
+
+        // Live availability changes frequently. Fetch a fresh list whenever the
+        // user returns to a different Live category instead of reusing its cache.
+        if changedCategory {
+            (vc as? BLTabBarContentVCProtocol)?.reloadData()
+        }
+    }
 }
 
 class MyLiveViewController: StandardVideoCollectionViewController<LiveRoom> {
