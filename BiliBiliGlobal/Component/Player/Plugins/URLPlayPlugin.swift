@@ -24,7 +24,9 @@ class URLPlayPlugin: NSObject {
     func play(urlString: String) {
         currentUrl = urlString
         let headers: [String: String] = [
-            "User-Agent": Keys.userAgent,
+            // Live CDN URLs are issued for web playback and reject the app-branded
+            // Global user agent used by ordinary API calls.
+            "User-Agent": isLive ? Keys.liveUserAgent : Keys.userAgent,
             "Referer": referer,
         ]
         let asset = AVURLAsset(url: URL(string: urlString)!, options: ["AVURLAssetHTTPHeaderFieldsKey": headers])
