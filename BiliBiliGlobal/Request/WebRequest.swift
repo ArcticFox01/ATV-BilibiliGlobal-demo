@@ -80,6 +80,7 @@ enum WebRequest {
         }
 
         var afheaders = HTTPHeaders()
+        let isLiveAPI = (try? url.asURL().host) == "api.live.bilibili.com"
         if let headers {
             for (k, v) in headers {
                 afheaders.add(HTTPHeader(name: k, value: v))
@@ -87,11 +88,11 @@ enum WebRequest {
         }
 
         if !afheaders.contains(where: { $0.name == "User-Agent" }) {
-            afheaders.add(.userAgent(Keys.userAgent))
+            afheaders.add(.userAgent(isLiveAPI ? Keys.liveUserAgent : Keys.userAgent))
         }
 
         if !afheaders.contains(where: { $0.name == "Referer" }) {
-            afheaders.add(HTTPHeader(name: "Referer", value: Keys.referer))
+            afheaders.add(HTTPHeader(name: "Referer", value: isLiveAPI ? Keys.liveReferer : Keys.referer))
         }
         if !afheaders.contains(where: { $0.name == "Accept-Language" }) {
             afheaders.add(HTTPHeader(name: "Accept-Language", value: "en-US,en;q=0.9"))
