@@ -29,6 +29,9 @@ class BVideoPlayPlugin: NSObject, CommonPlayerPlugin {
     /// rendition after the playlist has loaded. Retry once with a real SDR
     /// stream instead of leaving AVKit on its terminal error screen.
     private var attemptedHDRCompatibilityFallback = false
+    private var attemptedBandwidthCompatibilityFallback = false
+    private var insufficientStartupBandwidthSince: TimeInterval?
+    private let startupBandwidthFallbackDelay: TimeInterval = 15
 
     private var networkLogTimer: Timer?
     private var lastStalls = 0
@@ -144,6 +147,8 @@ class BVideoPlayPlugin: NSObject, CommonPlayerPlugin {
         self.playerVC = playerVC
         playerVC.player = nil
         attemptedHDRCompatibilityFallback = false
+        attemptedBandwidthCompatibilityFallback = false
+        insufficientStartupBandwidthSince = nil
         startLoad(urlInfo: playData.videoPlayURLInfo, playerInfo: playData.playerInfo)
     }
 
@@ -312,7 +317,82 @@ class BVideoPlayPlugin: NSObject, CommonPlayerPlugin {
         lastStalls = stalls
         lastDroppedFrames = dropped
 
+        noteStartupBandwidth(observedBps: observedBps,
+                             requiredBps: Double(playerDelegate?.primaryVideoBandwidth ?? Int(effectiveIndicated)),
+                             buffered: buffered)
+
         checkStallHealth(stallDelta: stallDelta, buffered: buffered, currentHost: host)
+    }
+
+    /// A manually selected 4K stream must not wait forever if the measured CDN
+    /// throughput cannot sustain even its average bitrate. Give it a short
+    /// startup window, then restart at the highest stream the connection can
+    /// plausibly sustain.
+    private func noteStartupBandwidth(observedBps: Double, requiredBps: Double, buffered: Double) {
+        guard transportMode == .accelerated,
+              !isUserPaused,
+              !attemptedBandwidthCompatibilityFallback,
+              isWaitingToPlay,
+              buffered < 0.5,
+              observedBps > 0,
+              requiredBps > observedBps * 1.25
+        else {
+            insufficientStartupBandwidthSince = nil
+            return
+        }
+
+        let now = ProcessInfo.processInfo.systemUptime
+        if let since = insufficientStartupBandwidthSince {
+            guard now - since >= startupBandwidthFallbackDelay else { return }
+            attemptedBandwidthCompatibilityFallback = true
+            insufficientStartupBandwidthSince = nil
+            Task { @MainActor [weak self] in
+                await self?.recoverInsufficientStartupBandwidth(observedBps: observedBps)
+            }
+        } else {
+            insufficientStartupBandwidthSince = now
+        }
+    }
+
+    @MainActor
+    private func recoverInsufficientStartupBandwidth(observedBps: Double) async {
+        let currentQuality = lastStreamIndex.flatMap { index in
+            playData.videoPlayURLInfo.dash.video.indices.contains(index)
+                ? playData.videoPlayURLInfo.dash.video[index].id
+                : nil
+        } ?? lastMaxQuality ?? Int.max
+        let safeBitrate = Int(observedBps * 0.8)
+        let candidates = playData.videoPlayURLInfo.dash.video.enumerated().filter {
+            $0.element.id < currentQuality
+                && $0.element.id != 125
+                && $0.element.id != MediaQualityEnum.quality_hdr_dolby.qn
+        }
+        guard let fallback = candidates.filter({ $0.element.bandwidth <= safeBitrate }).max(by: {
+            $0.element.id == $1.element.id
+                ? $0.element.bandwidth < $1.element.bandwidth
+                : $0.element.id < $1.element.id
+        }) ?? candidates.min(by: { $0.element.bandwidth < $1.element.bandwidth })
+        else {
+            Logger.warn("[quality] startup bandwidth is insufficient and no lower stream is available")
+            return
+        }
+
+        Logger.warn("[quality] 4K startup needs more than \(Int(observedBps / 1_000_000))Mbps; falling back to qn \(fallback.element.id)")
+        do {
+            let generation = beginLoadGeneration()
+            try await playmedia(urlInfo: playData.videoPlayURLInfo,
+                                playerInfo: playData.playerInfo,
+                                generation: generation,
+                                maxQuality: fallback.element.id,
+                                streamIndex: fallback.offset,
+                                isQualitySwitch: true)
+            guard loadGeneration == generation, let player = playerVC?.player else { return }
+            player.play()
+        } catch is CancellationError {
+            return
+        } catch {
+            Logger.warn("[quality] startup bandwidth fallback failed: \(error)")
+        }
     }
 
     /// 用户明确暂停（.paused）。卡缓冲/断网时是 .waitingToPlayAtSpecifiedRate，仍应做健康检测。
@@ -723,6 +803,8 @@ class BVideoPlayPlugin: NSObject, CommonPlayerPlugin {
         guard let player = playerVC?.player else { return }
 
         attemptedHDRCompatibilityFallback = false
+        attemptedBandwidthCompatibilityFallback = false
+        insufficientStartupBandwidthSince = nil
         let currentTime = player.currentTime().seconds
         guard currentTime > 0 else { return }
 
