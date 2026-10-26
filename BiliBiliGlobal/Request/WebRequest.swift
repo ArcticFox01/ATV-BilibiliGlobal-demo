@@ -584,9 +584,9 @@ extension WebRequest {
             else { return nil }
 
             let content = String(fields[9])
-                .replacingOccurrences(of: "\\\\N", with: "\n")
-                .replacingOccurrences(of: "\\\\n", with: "\n")
-                .replacingOccurrences(of: "\\\\h", with: " ")
+                .replacingOccurrences(of: "\\N", with: "\n")
+                .replacingOccurrences(of: "\\n", with: "\n")
+                .replacingOccurrences(of: "\\h", with: " ")
                 .replacingOccurrences(of: "\\{[^}]*\\}", with: "", options: .regularExpression)
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             guard !content.isEmpty else { return nil }

@@ -370,7 +370,7 @@ class VideoPlayerViewModel {
             if title?.isEmpty != false {
                 title = detail.title
             }
-            var subTitle = detail.ownerName
+            var subTitle = playInfo.isBangumi ? (playInfo.ownerName ?? detail.ownerName) : detail.ownerName
             // 分页播放时则以分页标题作主标题 up主用户名+视频标题作副标题
             let pages = detail.View.pages ?? []
             if pages.count > 1, let index = pages.firstIndex(where: { $0.cid == playInfo.cid }) {

@@ -51,14 +51,17 @@ enum PlayInfoResolver {
             resolved.epid = episode.id
             resolved.aid = episode.aid
             resolved.cid = episode.cid
+            let episodeTitle = [episode.title, episode.long_title]
+                .filter { !$0.isEmpty }
+                .joined(separator: " ")
+            if !episodeTitle.isEmpty {
+                resolved.title = episodeTitle
+            }
+            if info.season_title?.isEmpty == false {
+                resolved.ownerName = info.season_title
+            }
             if resolved.coverURL == nil {
                 resolved.coverURL = episode.cover
-            }
-            if resolved.title?.isEmpty != false {
-                let combinedTitle = [episode.title, episode.long_title]
-                    .filter { !$0.isEmpty }
-                    .joined(separator: " ")
-                resolved.title = combinedTitle.isEmpty ? resolved.title : combinedTitle
             }
         }
 
