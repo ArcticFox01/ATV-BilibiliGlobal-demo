@@ -22,6 +22,7 @@ enum PlayerMediaFactory {
     static func prepare(aid: Int,
                         urlInfo: VideoPlayURLInfo,
                         playerInfo: PlayerInfo?,
+                        subtitles: [SubtitleData]? = nil,
                         maxQuality: Int? = nil,
                         streamIndex: Int? = nil,
                         preferredHost: String? = nil,
@@ -35,7 +36,7 @@ enum PlayerMediaFactory {
         let asset = AVURLAsset(url: playURL, options: ["AVURLAssetHTTPHeaderFieldsKey": headers])
         let delegate = BilibiliVideoResourceLoaderDelegate()
         delegate.setBilibili(info: urlInfo,
-                             subtitles: playerInfo?.subtitle?.subtitles ?? [],
+                             subtitles: subtitles ?? playerInfo?.subtitle?.subtitles ?? [],
                              aid: aid,
                              maxQuality: maxQuality,
                              streamIndex: streamIndex,
@@ -105,6 +106,7 @@ actor PlayerMediaWarmupManager {
                 aid: resolvedPlayInfo.aid,
                 urlInfo: snapshot.videoPlayURLInfo,
                 playerInfo: snapshot.playerInfo,
+                subtitles: snapshot.subtitles,
                 transportMode: transportSnapshot
             )
         }

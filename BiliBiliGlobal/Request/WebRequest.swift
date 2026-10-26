@@ -1018,6 +1018,11 @@ struct BangumiInfo: Codable, Hashable {
         let views: Int?
     }
 
+    struct Season: Codable, Hashable {
+        let season_id: Int
+        let horizontal_cover_169: URL?
+    }
+
     struct Section: Codable, Hashable {
         let episodes: [Episode]
     }
@@ -1032,6 +1037,11 @@ struct BangumiInfo: Codable, Hashable {
     let cover: URL?
     let evaluate: String?
     let stat: Stat?
+    let seasons: [Season]?
+
+    var horizontalCover: URL? {
+        seasons?.first(where: { $0.season_id == season_id })?.horizontal_cover_169
+    }
 
     func findEpisodeById(_ epid: Int) -> Episode? {
         if let epi = episodes.first(where: { $0.id == epid }) {

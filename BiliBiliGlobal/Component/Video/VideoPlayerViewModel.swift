@@ -19,6 +19,7 @@ struct PlayerDetailData {
     var detail: VideoDetail?
     var clips: [VideoPlayURLInfo.ClipInfo]?
     var playerInfo: PlayerInfo?
+    var subtitles: [SubtitleData]
     var videoPlayURLInfo: VideoPlayURLInfo
 
     var isBangumi: Bool {
@@ -147,6 +148,7 @@ class VideoPlayerViewModel {
                                           detail: resolvedDetail,
                                           clips: nil,
                                           playerInfo: cached.playerInfo,
+                                          subtitles: cached.subtitles,
                                           videoPlayURLInfo: cached.videoPlayURLInfo)
 
             let lastPlayCid = playInfo.lastPlayCid ?? cached.playerInfo?.last_play_cid ?? 0
@@ -178,7 +180,7 @@ class VideoPlayerViewModel {
             let info = await infoReq
             let resolvedDetail = await detailReq
 
-            var detail = PlayerDetailData(aid: playInfo.aid, cid: playInfo.cid!, epid: playInfo.epid, seasonId: playInfo.seasonId, subType: playInfo.subType, detail: resolvedDetail, clips: clipInfos, playerInfo: info, videoPlayURLInfo: playData)
+            var detail = PlayerDetailData(aid: playInfo.aid, cid: playInfo.cid!, epid: playInfo.epid, seasonId: playInfo.seasonId, subType: playInfo.subType, detail: resolvedDetail, clips: clipInfos, playerInfo: info, subtitles: info?.subtitle?.subtitles ?? [], videoPlayURLInfo: playData)
 
             let last_play_cid = playInfo.lastPlayCid ?? info?.last_play_cid ?? 0
             let playTimeInSecond = playInfo.playTimeInSecond ?? info?.playTimeInSecond ?? 0

@@ -134,7 +134,7 @@ class SearchResultViewController: UIViewController {
             for (index, item) in items.enumerated() {
                 group.addTask {
                     let info = try? await WebRequest.requestBangumiInfo(seasonID: item.targetSeasonID)
-                    return (index, info?.cover)
+                    return (index, info?.horizontalCover ?? info?.cover)
                 }
             }
             for await(index, cover) in group {

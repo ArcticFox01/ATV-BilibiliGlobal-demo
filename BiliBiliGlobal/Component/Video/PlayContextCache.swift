@@ -17,6 +17,7 @@ struct PlayContextKey: Hashable {
 struct PlayContextSnapshot {
     let cid: Int
     let playerInfo: PlayerInfo?
+    let subtitles: [SubtitleData]
     let videoPlayURLInfo: VideoPlayURLInfo
     var detail: VideoDetail?
 }
@@ -106,8 +107,10 @@ actor PlayContextCache {
             }
             try Task.checkCancellation()
 
+            let playerInfo = await playerInfoReq
             return PlayContextSnapshot(cid: resolvedPlayInfo.cid ?? 0,
-                                       playerInfo: await playerInfoReq,
+                                       playerInfo: playerInfo,
+                                       subtitles: playerInfo?.subtitle?.subtitles ?? [],
                                        videoPlayURLInfo: playURLInfo,
                                        detail: await detailReq)
         }

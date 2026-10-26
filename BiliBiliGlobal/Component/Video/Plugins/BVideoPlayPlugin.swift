@@ -133,6 +133,9 @@ class BVideoPlayPlugin: NSObject, CommonPlayerPlugin {
     }
 
     func playerWillStart(player: AVPlayer) {
+        Task { @MainActor [weak self] in
+            self?.activateDefaultSubtitle(on: player)
+        }
         if let playerStartPos = playData.playerStartPos {
             player.seek(to: CMTime(seconds: Double(playerStartPos), preferredTimescale: 1), toleranceBefore: .zero, toleranceAfter: .zero)
         }
@@ -188,6 +191,19 @@ class BVideoPlayPlugin: NSObject, CommonPlayerPlugin {
         playerDelegate?.refreshSubtitlePosition()
         item.select(nil, in: group)
         item.select(selected, in: group)
+    }
+
+    @MainActor
+    private func activateDefaultSubtitle(on player: AVPlayer) {
+        guard let item = player.currentItem,
+              let group = item.asset.mediaSelectionGroup(forMediaCharacteristic: .legible),
+              let option = group.options.first(where: { $0.locale?.languageCode == "en" })
+              ?? group.defaultOption
+              ?? group.options.first
+        else { return }
+
+        item.select(nil, in: group)
+        item.select(option, in: group)
     }
 
     private func probeCDN() {
@@ -589,6 +605,7 @@ class BVideoPlayPlugin: NSObject, CommonPlayerPlugin {
         return try await PlayerMediaFactory.prepare(aid: playData.aid,
                                                     urlInfo: urlInfo,
                                                     playerInfo: playerInfo,
+                                                    subtitles: playData.subtitles,
                                                     maxQuality: maxQuality,
                                                     streamIndex: streamIndex,
                                                     preferredHost: resolvedHost,
@@ -704,12 +721,6 @@ class BVideoPlayPlugin: NSObject, CommonPlayerPlugin {
               let playerVC
         else { return }
         let playerItem = AVPlayerItem(asset: asset)
-        if let subtitleGroup = try? await asset.loadMediaSelectionGroup(for: .legible),
-           subtitleGroup.allowsEmptySelection
-        {
-            playerItem.select(nil, in: subtitleGroup)
-        }
-
         // 设置 preferredPeakBitRate 为一个很高的值，让 AVPlayer 优先选择高码率流
         // 0 表示无限制，让 AVPlayer 根据网络条件自动选择最高可用码率
         playerItem.preferredPeakBitRate = 0
