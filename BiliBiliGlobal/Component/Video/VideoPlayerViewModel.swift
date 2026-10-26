@@ -364,7 +364,12 @@ class VideoPlayerViewModel {
 
         // 默认视频标题作主标题 up主用户名作副标题
         if let detail = data.detail {
-            var title = detail.title
+            // Bangumi resolution includes the episode number and episode name in
+            // playInfo.title. Prefer it over the generic archive title.
+            var title = playInfo.title?.trimmingCharacters(in: .whitespacesAndNewlines)
+            if title?.isEmpty != false {
+                title = detail.title
+            }
             var subTitle = detail.ownerName
             // 分页播放时则以分页标题作主标题 up主用户名+视频标题作副标题
             let pages = detail.View.pages ?? []

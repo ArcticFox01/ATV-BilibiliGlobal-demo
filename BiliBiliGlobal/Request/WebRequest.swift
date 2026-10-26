@@ -559,8 +559,50 @@ extension WebRequest {
         struct SubtitlContenteResp: Codable {
             let body: [SubtitleContent]
         }
-        let resp = try await AF.request(url).serializingDecodable(SubtitlContenteResp.self).value
-        return resp.body
+        let data = try await AF.request(url).serializingData().value
+        if let resp = try? JSONDecoder().decode(SubtitlContenteResp.self, from: data) {
+            return resp.body
+        }
+        guard let ass = String(data: data, encoding: .utf8) else {
+            throw RequestError.decodeFail(message: "Subtitle response is neither JSON nor UTF-8 ASS text")
+        }
+        let subtitles = decodeASSSubtitles(ass)
+        guard !subtitles.isEmpty else {
+            throw RequestError.decodeFail(message: "Unsupported subtitle format")
+        }
+        return subtitles
+    }
+
+    private static func decodeASSSubtitles(_ ass: String) -> [SubtitleContent] {
+        ass.split(whereSeparator: \.isNewline).compactMap { line in
+            guard line.hasPrefix("Dialogue:") else { return nil }
+            let fields = line.dropFirst("Dialogue:".count)
+                .split(separator: ",", maxSplits: 9, omittingEmptySubsequences: false)
+            guard fields.count == 10,
+                  let from = decodeASSTime(String(fields[1])),
+                  let to = decodeASSTime(String(fields[2]))
+            else { return nil }
+
+            let content = String(fields[9])
+                .replacingOccurrences(of: "\\\\N", with: "\n")
+                .replacingOccurrences(of: "\\\\n", with: "\n")
+                .replacingOccurrences(of: "\\\\h", with: " ")
+                .replacingOccurrences(of: "\\{[^}]*\\}", with: "", options: .regularExpression)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !content.isEmpty else { return nil }
+            return SubtitleContent(from: from, to: to, location: nil, content: content)
+        }
+    }
+
+    private static func decodeASSTime(_ value: String) -> CGFloat? {
+        let fields = value.trimmingCharacters(in: .whitespaces)
+            .split(separator: ":", omittingEmptySubsequences: false)
+        guard fields.count == 3,
+              let hours = Double(fields[0]),
+              let minutes = Double(fields[1]),
+              let seconds = Double(fields[2].replacing(",", with: "."))
+        else { return nil }
+        return CGFloat(hours * 3600 + minutes * 60 + seconds)
     }
 
     static func requestCid(aid: Int) async throws -> Int {
