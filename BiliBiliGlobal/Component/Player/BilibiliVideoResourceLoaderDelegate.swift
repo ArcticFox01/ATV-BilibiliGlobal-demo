@@ -912,14 +912,13 @@ enum BVideoUrlUtils {
         for (index, model) in chronological.enumerated() {
             let from = convertVTTFormate(model.from)
             let to = convertVTTFormate(model.to)
-            // Keep the HLS WebVTT payload deliberately conservative.  tvOS rejects
-            // the previous cue-setting form for some subtitle tracks (notably the
-            // English and Thai ASS conversions), even though their cue text and
-            // times are valid.  Numbered, unstyled cues are accepted consistently.
+            // Keep the HLS WebVTT payload deliberately conservative. tvOS rejects
+            // the previous position/align form for some subtitle tracks, but its
+            // vertical line setting is required for the subtitle-position menu.
             let content = model.content
                 .replacingOccurrences(of: "\r\n", with: "\n")
                 .replacingOccurrences(of: "\r", with: "\n")
-            vtt.append("\(index + 1)\n\(from) --> \(to)\n\(content)\n\n")
+            vtt.append("\(index + 1)\n\(from) --> \(to) line:\(Settings.subtitleVerticalPosition)%\n\(content)\n\n")
         }
         return vtt
     }
