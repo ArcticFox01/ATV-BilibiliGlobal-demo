@@ -128,11 +128,12 @@ class LivePlayerViewModel {
 
         let streams = try await WebRequest.requestLiveStreams(roomID: roomID)
 
-        for stream in streams {
+        for stream in streams where stream.protocol_name == "http_hls" {
             for content in stream.format {
+                guard content.formatName == "fmp4" || content.formatName == "ts" else { continue }
                 let formate = content.formatName
                 let codecs = content.codec
-                for codec in codecs {
+                for codec in codecs where codec.codecName == "avc" {
                     let qn = codec.currentQn
                     let baseUrl = codec.baseurl
                     for url_info in codec.urlInfo {
@@ -146,12 +147,13 @@ class LivePlayerViewModel {
             }
         }
 
-        allPlayInfos.sort { a, b in
-            return a.current_qn ?? 0 > b.current_qn ?? 0
-        }
-
-        allPlayInfos.sort { a, b in
-            return a.formate == "fmp4"
+        allPlayInfos.sort { lhs, rhs in
+            let lhsFormatRank = lhs.formate == "fmp4" ? 0 : 1
+            let rhsFormatRank = rhs.formate == "fmp4" ? 0 : 1
+            if lhsFormatRank != rhsFormatRank {
+                return lhsFormatRank < rhsFormatRank
+            }
+            return (lhs.current_qn ?? 0) > (rhs.current_qn ?? 0)
         }
 
         Logger.debug("all info arry:\(playInfos)")
@@ -236,7 +238,7 @@ extension WebRequest {
         }
         let info: LiveRoomStreamInfo = try await request(url: EndPoint.liveRoomStream,
                                                          parameters: ["room_id": roomID,
-                                                                      "protocol": "1",
+                                                                      "protocol": "0,1",
                                                                       "format": "0,1,2",
                                                                       "codec": "0,1",
                                                                       "qn": "10000",
