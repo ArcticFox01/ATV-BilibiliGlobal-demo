@@ -21,6 +21,20 @@ class BVideoPlayPlugin: NSObject, CommonPlayerPlugin {
     private let mediaWarmupManager: PlayerMediaWarmupManager?
     private var currentQualityId: Int?
     private var currentPlaybackTime: Double = 0
+    private struct SubtitleSelection {
+        let localeIdentifier: String?
+        let displayName: String
+    }
+
+    private enum PendingSubtitleSelection {
+        case disabled
+        case selected(SubtitleSelection)
+    }
+
+    /// A quality or CDN switch replaces the AVPlayerItem, which also replaces
+    /// AVKit's subtitle-selection state. Keep the user's current choice until
+    /// the new item's media-selection group is ready.
+    private var pendingSubtitleSelection: PendingSubtitleSelection?
     // 记录最近一次实际用于加载的 maxQuality/streamIndex，host 切换时原样复用，
     // 不去动用户当前的画质模式（自动多档 fallback 还是手动锁定某一档）
     private var lastMaxQuality: Int?
@@ -186,7 +200,7 @@ class BVideoPlayPlugin: NSObject, CommonPlayerPlugin {
 
     func playerWillStart(player: AVPlayer) {
         Task { @MainActor [weak self] in
-            self?.activateDefaultSubtitle(on: player)
+            self?.activateSubtitle(on: player)
         }
         if let playerStartPos = playData.playerStartPos {
             player.seek(to: CMTime(seconds: Double(playerStartPos), preferredTimescale: 1), toleranceBefore: .zero, toleranceAfter: .zero)
@@ -246,16 +260,52 @@ class BVideoPlayPlugin: NSObject, CommonPlayerPlugin {
     }
 
     @MainActor
-    private func activateDefaultSubtitle(on player: AVPlayer) {
+    private func activateSubtitle(on player: AVPlayer) {
         guard let item = player.currentItem,
-              let group = item.asset.mediaSelectionGroup(forMediaCharacteristic: .legible),
-              let option = group.options.first(where: { $0.locale?.languageCode == "en" })
-              ?? group.defaultOption
-              ?? group.options.first
+              let group = item.asset.mediaSelectionGroup(forMediaCharacteristic: .legible)
         else { return }
 
+        if let pendingSubtitleSelection {
+            self.pendingSubtitleSelection = nil
+            switch pendingSubtitleSelection {
+            case .disabled:
+                item.select(nil, in: group)
+                return
+            case let .selected(selection):
+                let option = group.options.first {
+                    $0.locale?.identifier == selection.localeIdentifier
+                        && $0.displayName == selection.displayName
+                }
+                    ?? group.options.first(where: { $0.displayName == selection.displayName })
+                    ?? group.options.first(where: { $0.locale?.identifier == selection.localeIdentifier })
+                if let option {
+                    item.select(nil, in: group)
+                    item.select(option, in: group)
+                    return
+                }
+            }
+        }
+
+        guard let option = group.options.first(where: { $0.locale?.languageCode == "en" })
+            ?? group.defaultOption
+            ?? group.options.first
+        else { return }
         item.select(nil, in: group)
         item.select(option, in: group)
+    }
+
+    @MainActor
+    private func preserveSubtitleSelectionForReload() {
+        guard let item = playerVC?.player?.currentItem,
+              let group = item.asset.mediaSelectionGroup(forMediaCharacteristic: .legible)
+        else { return }
+
+        guard let option = item.currentMediaSelection.selectedMediaOption(in: group) else {
+            pendingSubtitleSelection = .disabled
+            return
+        }
+        pendingSubtitleSelection = .selected(SubtitleSelection(localeIdentifier: option.locale?.identifier,
+                                                               displayName: option.displayName))
     }
 
     private func probeCDN() {
@@ -666,6 +716,9 @@ class BVideoPlayPlugin: NSObject, CommonPlayerPlugin {
                            forceTransport: MediaTransportMode? = nil) async throws
     {
         _ = try ensureActiveLoad(generation)
+        if isQualitySwitch {
+            preserveSubtitleSelectionForReload()
+        }
         let prepared = try await preparedMedia(urlInfo: urlInfo,
                                                playerInfo: playerInfo,
                                                maxQuality: maxQuality,
