@@ -561,6 +561,7 @@ private extension BilibiliVideoResourceLoaderDelegate {
                         let content = try await WebRequest.requestSubtitle(url: URL(string: req)!)
                         let vtt = BVideoUrlUtils.convertToVTT(subtitle: content)
                         subtitles[req] = vtt
+                        Logger.info("Loaded \(content.count) subtitle cues for local WebVTT delivery")
                     }
                     let port = try self.httpServer.port()
                     var components = URLComponents()
@@ -596,7 +597,10 @@ private extension BilibiliVideoResourceLoaderDelegate {
             if let url = req.queryParams.first(where: { $0.0 == "u" })?.1 {
                 let req = url.removingPercentEncoding ?? url
                 if let content = self?.subtitles[req] {
-                    return HttpResponse.ok(.text(content))
+                    // AVFoundation only treats this as a caption resource when the
+                    // local proxy preserves WebVTT's MIME type. `.text` incorrectly
+                    // emits `text/plain`, which can leave a selected track invisible.
+                    return HttpResponse.ok(.data(Data(content.utf8), contentType: "text/vtt; charset=utf-8"))
                 }
             }
             return HttpResponse.notFound()
