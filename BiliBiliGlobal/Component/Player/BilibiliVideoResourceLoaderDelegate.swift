@@ -901,7 +901,15 @@ enum BVideoUrlUtils {
         // the media timeline; without this header it selects the rendition but
         // rejects its samples (WebVTTSamples -16012).
         var vtt = "WEBVTT\nX-TIMESTAMP-MAP=LOCAL:00:00:00.000,MPEGTS:0\n\n"
-        for (index, model) in subtitle.enumerated() {
+        // ASS files are not guaranteed to be stored in playback order. The
+        // English and Thai tracks put styled title cards before earlier dialogue
+        // cues, while AVFoundation requires WebVTT samples to be monotonic.
+        let chronological = subtitle.enumerated().sorted { lhs, rhs in
+            if lhs.element.from != rhs.element.from { return lhs.element.from < rhs.element.from }
+            if lhs.element.to != rhs.element.to { return lhs.element.to < rhs.element.to }
+            return lhs.offset < rhs.offset
+        }.map(\.element)
+        for (index, model) in chronological.enumerated() {
             let from = convertVTTFormate(model.from)
             let to = convertVTTFormate(model.to)
             // Keep the HLS WebVTT payload deliberately conservative.  tvOS rejects
