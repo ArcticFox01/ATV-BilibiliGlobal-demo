@@ -44,6 +44,9 @@ class BilibiliVideoResourceLoaderDelegate: NSObject, AVAssetResourceLoaderDelega
     private let segmentInfoCache = SidxDownloader(maxEntries: 16)
     private var hasAudioInMasterListAdded = false
     private var audioRenditionIndex = 0
+    /// Every HLS variant must advertise every codec it combines, including its
+    /// external audio rendition. AVFoundation is stricter about this for HDR.
+    private var primaryAudioCodec: String?
     private(set) var playInfo: VideoPlayURLInfo?
     private var hasSubtitle = false
     private var httpServer = HttpServer()
@@ -105,12 +108,13 @@ class BilibiliVideoResourceLoaderDelegate: NSObject, AVAssetResourceLoaderDelega
         playlists.removeAll()
         audioRenditionIndex = 0
         hasAudioInMasterListAdded = false
+        primaryAudioCodec = nil
         proxyAvailable = false
         proxyRegistry.removeAll()
         updateAccelerationText("")
         masterPlaylist = """
         #EXTM3U
-        #EXT-X-VERSION:6
+        #EXT-X-VERSION:7
         #EXT-X-INDEPENDENT-SEGMENTS
 
 
@@ -171,8 +175,9 @@ class BilibiliVideoResourceLoaderDelegate: NSObject, AVAssetResourceLoaderDelega
         if supplementCodesc.count > 0 {
             supplementCodesc = ",SUPPLEMENTAL-CODECS=\"\(supplementCodesc)\""
         }
+        let codecList = ([codecs, primaryAudioCodec].compactMap { $0 }.joined(separator: ","))
         let content = """
-        #EXT-X-STREAM-INF:AUDIO="audio"\(subtitlePlaceHolder),CODECS="\(codecs)"\(supplementCodesc),RESOLUTION=\(info.width ?? 0)x\(info.height ?? 0),FRAME-RATE=\(framerate),BANDWIDTH=\(Self.peakBandwidth(forAverage: info.bandwidth)),AVERAGE-BANDWIDTH=\(info.bandwidth),VIDEO-RANGE=\(videoRange)
+        #EXT-X-STREAM-INF:AUDIO="audio"\(subtitlePlaceHolder),CODECS="\(codecList)"\(supplementCodesc),RESOLUTION=\(info.width ?? 0)x\(info.height ?? 0),FRAME-RATE=\(framerate),BANDWIDTH=\(Self.peakBandwidth(forAverage: info.bandwidth)),AVERAGE-BANDWIDTH=\(info.bandwidth),VIDEO-RANGE=\(videoRange)
         \(URLs.customDashPrefix)\(videoInfo.count)?codec=\(info.codecs)&rate=\(info.frame_rate ?? framerate)&width=\(info.width ?? 0)&host=\(URL(string: url)?.host ?? "none")&range=\(info.id)
 
         """
@@ -357,6 +362,7 @@ class BilibiliVideoResourceLoaderDelegate: NSObject, AVAssetResourceLoaderDelega
         // reset() 会清 proxyAvailable；恢复本会话的模式（reset 后设置，避免被清掉）
         self.transportMode = transportMode
         hasSubtitle = subtitles.count > 0
+        primaryAudioCodec = info.dash.audio?.first?.codecs
         var videos = info.dash.video
         if Settings.preferAvc {
             let videosMap = Dictionary(grouping: videos, by: { $0.id })
@@ -468,16 +474,6 @@ class BilibiliVideoResourceLoaderDelegate: NSObject, AVAssetResourceLoaderDelega
             if let url = subtitle.url {
                 addSubtitleData(lang: subtitle.lan, name: subtitle.lan_doc, duration: info.dash.duration, url: url.absoluteString)
             }
-        }
-
-        // i-frame
-        if let video = videos.last, let url = video.playableURLs.first {
-            let media = """
-            #EXT-X-I-FRAME-STREAM-INF:BANDWIDTH=\(Self.peakBandwidth(forAverage: video.bandwidth)),RESOLUTION=\(video.width!)x\(video.height!),URI="\(URLs.customDashPrefix)\(videoInfo.count)"
-
-            """
-            masterPlaylist.append(media)
-            videoInfo.append(PlaybackInfo(info: video, url: url, duration: info.dash.duration))
         }
 
         masterPlaylist.append("\n#EXT-X-ENDLIST\n")
