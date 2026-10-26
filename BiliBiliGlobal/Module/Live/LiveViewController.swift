@@ -126,58 +126,35 @@ extension WebRequest {
         struct Resp: Codable {
             let rooms: [LiveRoom]
         }
-        let resp: Resp = try await request(url: EndPoint.liveRoom, parameters: ["page_size": 10, "page": page])
-        return resp.rooms
+        do {
+            let resp: Resp = try await request(url: EndPoint.liveRoom, parameters: ["page_size": 10, "page": page])
+            return resp.rooms
+        } catch RequestError.statusFail(code: -352, message: _) {
+            return try await requestPublicLiveRecommendations().map { $0.asLiveRoom() }
+        }
     }
 
     static func requestAreaLiveRoom(area: Int, page: Int) async throws -> [AreaLiveRoom] {
-        struct Resp: Codable {
-            let list: [AreaLiveRoom]
-        }
-
-        let resp: Resp = try await request(url: EndPoint.areaLive, parameters: ["platform": "web", "parent_area_id": area, "area_id": 0, "page": page])
-        return resp.list
+        let rooms = try await requestPublicLiveRecommendations()
+        let matches = rooms.filter { $0.area_v2_parent_id == area }
+        return (matches.isEmpty ? rooms : matches).map { $0.asAreaLiveRoom() }
     }
 
     static func requestHotLiveRoom(page: Int) async throws -> [AreaLiveRoom] {
-        struct Resp: Codable {
-            let list: [AreaLiveRoom]
-        }
-
-        let resp: Resp = try await request(url: EndPoint.hotLive, parameters: ["platform": "web", "sort": "online", "page_size": 30, "page": page])
-        return resp.list
+        try await requestPublicLiveRecommendations().map { $0.asAreaLiveRoom() }
     }
 
     static func requestRecommandLiveRoom(page: Int) async throws -> [AreaLiveRoom] {
-        struct RecommendedRoom: Codable {
-            let title: String
-            let roomid: Int
-            let uname: String
-            let cover: String
-            let face: URL?
-            let area_v2_parent_name: String
-            let area_v2_name: String
+        try await requestPublicLiveRecommendations().map { $0.asAreaLiveRoom() }
+    }
 
-            func asAreaLiveRoom() -> AreaLiveRoom {
-                AreaLiveRoom(title: title,
-                             roomid: roomid,
-                             uname: uname,
-                             system_cover: cover,
-                             face: face,
-                             user_cover: URL(string: cover),
-                             parent_name: area_v2_parent_name,
-                             area_name: area_v2_name,
-                             area_v2_name: area_v2_name)
-            }
-        }
-
+    private static func requestPublicLiveRecommendations() async throws -> [LiveRecommendationRoom] {
         struct Resp: Codable {
-            let recommend_room_list: [RecommendedRoom]
+            let recommend_room_list: [LiveRecommendationRoom]
         }
-
         let resp: Resp = try await request(url: EndPoint.recommandLive,
                                            parameters: ["platform": "web", "web_location": 333_1007])
-        return resp.recommend_room_list.map { $0.asAreaLiveRoom() }
+        return resp.recommend_room_list
     }
 }
 
@@ -205,5 +182,38 @@ struct AreaLiveRoom: DisplayData, Codable, PlayableData {
 
     func toLiveRoom() -> LiveRoom {
         return LiveRoom(title: title, room_id: roomid, uname: uname, area_v2_name: area_v2_name, keyframe: system_cover.isEmpty ? nil : system_cover, face: face, cover_from_user: user_cover)
+    }
+}
+
+private struct LiveRecommendationRoom: Codable {
+    let title: String
+    let roomid: Int
+    let uname: String
+    let cover: String
+    let face: URL?
+    let area_v2_parent_id: Int
+    let area_v2_parent_name: String?
+    let area_v2_name: String
+
+    func asAreaLiveRoom() -> AreaLiveRoom {
+        AreaLiveRoom(title: title,
+                     roomid: roomid,
+                     uname: uname,
+                     system_cover: cover,
+                     face: face,
+                     user_cover: URL(string: cover),
+                     parent_name: area_v2_parent_name ?? "",
+                     area_name: area_v2_name,
+                     area_v2_name: area_v2_name)
+    }
+
+    func asLiveRoom() -> LiveRoom {
+        LiveRoom(title: title,
+                 room_id: roomid,
+                 uname: uname,
+                 area_v2_name: area_v2_name,
+                 keyframe: cover,
+                 face: face,
+                 cover_from_user: URL(string: cover))
     }
 }

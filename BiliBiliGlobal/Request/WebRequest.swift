@@ -153,7 +153,7 @@ enum WebRequest {
 
                     // Handle captcha validation error (-352)
                     if errorCode == -352 {
-                        Logger.warn("WbiSign error (code=-352), clearing cache. URL: \(url)")
+                        Logger.warn("Bilibili risk-control error (code=-352), clearing WBI cache. URL: \(url)")
                         WbiKeysCache.shared.clear()
                     }
 
