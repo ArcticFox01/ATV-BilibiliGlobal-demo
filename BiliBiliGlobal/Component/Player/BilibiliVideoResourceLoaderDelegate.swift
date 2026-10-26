@@ -897,11 +897,17 @@ enum BVideoUrlUtils {
 
     static func convertToVTT(subtitle: [SubtitleContent]) -> String {
         var vtt = "WEBVTT\n\n"
-        for model in subtitle {
+        for (index, model) in subtitle.enumerated() {
             let from = convertVTTFormate(model.from)
             let to = convertVTTFormate(model.to)
-            // hours:minutes:seconds.millisecond
-            vtt.append("\(from) --> \(to) line:\(Settings.subtitleVerticalPosition)% position:50% align:center\n\(model.content)\n\n")
+            // Keep the HLS WebVTT payload deliberately conservative.  tvOS rejects
+            // the previous cue-setting form for some subtitle tracks (notably the
+            // English and Thai ASS conversions), even though their cue text and
+            // times are valid.  Numbered, unstyled cues are accepted consistently.
+            let content = model.content
+                .replacingOccurrences(of: "\r\n", with: "\n")
+                .replacingOccurrences(of: "\r", with: "\n")
+            vtt.append("\(index + 1)\n\(from) --> \(to)\n\(content)\n\n")
         }
         return vtt
     }
