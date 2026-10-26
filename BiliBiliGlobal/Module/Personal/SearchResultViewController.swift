@@ -55,37 +55,56 @@ class SearchResultViewController: UIViewController {
 
     @MainActor
     private func performSearch(key: String) async {
-        // 使用 async let 并行请求
+        // The combined endpoint can omit `media_bangumi` even when the
+        // category search has matching anime.
         async let searchResultTask = WebRequest.requestSearchResult(key: key)
+        async let bangumiResultTask = WebRequest.requestSearchBangumiResult(key: key)
         async let liveResultTask = WebRequest.requestSearchLiveResult(key: key)
 
         let searchResult = try? await searchResultTask
+        let bangumiResult = try? await bangumiResultTask
         let liveResult = try? await liveResultTask
 
-        updateSnapshot(searchResult: searchResult, liveResult: liveResult)
+        let enrichedBangumiResult = await enrichBangumiCovers(bangumiResult)
+        updateSnapshot(searchResult: searchResult, bangumiResult: enrichedBangumiResult, liveResult: liveResult)
     }
 
     @MainActor
-    private func updateSnapshot(searchResult: SearchResult?, liveResult: SearchLiveResult?) {
+    private func updateSnapshot(searchResult: SearchResult?, bangumiResult: SearchBangumiResult?, liveResult: SearchLiveResult?) {
         currentSnapshot.deleteAllItems()
         dataSource.apply(currentSnapshot)
 
         let defaultHeight = NSCollectionLayoutDimension.fractionalWidth(Settings.displayStyle == .large ? 0.26 : 0.2)
+        var bangumiResults = bangumiResult?.result ?? []
+        var addedBangumiSection = false
 
-        // 添加综合搜索结果
+        func addBangumiSection() {
+            guard !addedBangumiSection, !bangumiResults.isEmpty else { return }
+            addedBangumiSection = true
+            var seenSeasonIDs = Set<Int>()
+            let uniqueResults = bangumiResults.filter { seenSeasonIDs.insert($0.targetSeasonID).inserted }
+            let list = SearchList(title: "Anime", height: defaultHeight, scrollingBehavior: .continuous)
+            currentSnapshot.appendSections([list])
+            currentSnapshot.appendItems(uniqueResults.map { .bangumi($0) }, toSection: list)
+        }
+
         if let searchResult {
+            for section in searchResult.result {
+                if case let .bangumi(data) = section {
+                    bangumiResults.append(contentsOf: data)
+                }
+            }
+
             for section in searchResult.result {
                 switch section {
                 case let .video(data):
                     let list = SearchList(title: "Videos", height: defaultHeight, scrollingBehavior: .continuous)
                     currentSnapshot.appendSections([list])
                     currentSnapshot.appendItems(data.map { .video($0) }, toSection: list)
-                case let .bangumi(data):
-                    let list = SearchList(title: "Anime", height: defaultHeight, scrollingBehavior: .continuous)
-                    currentSnapshot.appendSections([list])
-                    currentSnapshot.appendItems(data.map { .bangumi($0) }, toSection: list)
+                case .bangumi:
+                    addBangumiSection()
                 case let .movie(data):
-                    let list = SearchList(title: "Series & Films", height: defaultHeight, scrollingBehavior: .none)
+                    let list = SearchList(title: "Movies & TV", height: defaultHeight, scrollingBehavior: .none)
                     currentSnapshot.appendSections([list])
                     currentSnapshot.appendItems(data.map { .bangumi($0) }, toSection: list)
                 case let .user(data):
@@ -97,8 +116,8 @@ class SearchResultViewController: UIViewController {
                 }
             }
         }
+        addBangumiSection()
 
-        // 添加直播搜索结果
         if let liveResult, let liveRooms = liveResult.result.live_room, !liveRooms.isEmpty {
             let list = SearchList(title: "Live", height: defaultHeight, scrollingBehavior: .continuous)
             currentSnapshot.appendSections([list])
@@ -106,6 +125,25 @@ class SearchResultViewController: UIViewController {
         }
 
         dataSource.apply(currentSnapshot)
+    }
+
+    private func enrichBangumiCovers(_ result: SearchBangumiResult?) async -> SearchBangumiResult? {
+        guard var items = result?.result else { return result }
+
+        await withTaskGroup(of: (Int, URL?).self) { group in
+            for (index, item) in items.enumerated() {
+                group.addTask {
+                    let info = try? await WebRequest.requestBangumiInfo(seasonID: item.targetSeasonID)
+                    return (index, info?.cover)
+                }
+            }
+            for await(index, cover) in group {
+                if let cover {
+                    items[index].cover = cover
+                }
+            }
+        }
+        return SearchBangumiResult(result: items)
     }
 }
 
@@ -332,6 +370,39 @@ extension WebRequest {
         try await request(url: "https://api.bilibili.com/x/web-interface/wbi/search/type", parameters: ["keyword": key, "search_type": "live"])
     }
 
+    static func requestSearchBangumiResult(key: String) async throws -> SearchBangumiResult {
+        let locale = #"{"c_locale":{"language":"en"},"always_translate":true}"#
+        let device = #"{"platform":"web","device":"pc","spmid":"333.337","mobi_app":"web_i"}"#
+        let parameters: [String: Any] = [
+            "category_id": "",
+            "search_type": "media_bangumi",
+            "ad_resource": 5646,
+            "__refresh__": "true",
+            "_extra": "",
+            "context": "",
+            "page": 1,
+            "page_size": 12,
+            "order": "",
+            "pubtime_begin_s": 0,
+            "pubtime_end_s": 0,
+            "duration": "",
+            "from_source": "web_search",
+            "from_spmid": "333.337",
+            "platform": "pc",
+            "highlight": 1,
+            "single_column": 0,
+            "keyword": key,
+            "source_tag": 3,
+            "gaia_vtoken": "",
+            "web_location": 1_430_654,
+            "x-bili-device-req-json": device,
+            "x-bili-locale-json": locale,
+        ]
+        return try await request(url: "https://api.bilibili.com/x/web-interface/wbi/search/type",
+                                 parameters: parameters,
+                                 headers: ["Referer": "https://search.bilibili.com/en/bangumi"])
+    }
+
     static func requestSuggest(key: String) async throws -> SuggestResult {
         try await request(url: "https://api.bilibili.com/x/web-interface/suggest", parameters: ["term": key])
     }
@@ -372,9 +443,19 @@ struct SearchResult: Decodable, Hashable {
 
     struct Bangumi: Codable, Hashable, DisplayData {
         let season_id: Int
+        let goto_url: String?
         let styles: String
-        let cover: URL
+        var cover: URL
         let pubtime: Int
+
+        var targetSeasonID: Int {
+            guard let goto_url,
+                  let match = goto_url.range(of: #"ss(\d+)"#, options: .regularExpression)
+            else {
+                return season_id
+            }
+            return Int(goto_url[match].dropFirst(2)) ?? season_id
+        }
 
         // DisplayData
         var title: String
@@ -494,6 +575,10 @@ struct SearchLiveResult: Decodable, Hashable {
     }
 
     let result: Result
+}
+
+struct SearchBangumiResult: Decodable, Hashable {
+    let result: [SearchResult.Bangumi]?
 }
 
 struct SuggestResult: Decodable, Hashable {
