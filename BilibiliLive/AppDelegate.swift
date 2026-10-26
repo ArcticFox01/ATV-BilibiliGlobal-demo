@@ -22,7 +22,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         AVInfoPanelCollectionViewThumbnailCellHook.start()
         AccountManager.shared.bootstrap()
         BiliBiliUpnpDMR.shared.start()
-        URLSession.shared.configuration.headers.add(.userAgent("BiLiBiLi AppleTV Client/1.0.0 (github/yichengchen/ATV-Bilibili-live-demo)"))
+        URLSession.shared.configuration.headers.add(.userAgent("Bilibili Global for Apple TV/1.0"))
         WebRequest.requestIndex()
         return true
     }

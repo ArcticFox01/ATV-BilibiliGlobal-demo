@@ -113,61 +113,61 @@ class SettingsViewController: UIViewController {
 
     private func setupData() {
         createSnapshot {
-            SectionModel(title: "通用") {
-                Toggle(title: "启用投屏", setting: Settings.enableDLNA, onChange: Settings.enableDLNA.toggle()) {
+            SectionModel(title: "General") {
+                Toggle(title: "Enable Casting", setting: Settings.enableDLNA, onChange: Settings.enableDLNA.toggle()) {
                     _ in
                     BiliBiliUpnpDMR.shared.start()
                 }
 
-                Toggle(title: "热门个性化推荐", setting: Settings.requestHotWithoutCookie, onChange: Settings.requestHotWithoutCookie.toggle())
+                Toggle(title: "Personalized Trending", setting: Settings.requestHotWithoutCookie, onChange: Settings.requestHotWithoutCookie.toggle())
             }
 
-            SectionModel(title: "界面") {
-                Navigation(title: "自定义Tab栏", desp: "") { [weak self] in
+            SectionModel(title: "Appearance") {
+                Navigation(title: "Customize Tabs", desp: "") { [weak self] in
                     let controller = TabBarCustomizationViewController()
                     self?.present(controller, animated: true)
                 }
 
-                Actions(title: "视频每行显示个数", message: "重启app生效",
+                Actions(title: "Videos per Row", message: "Restart the app to apply this change.",
                         current: Settings.displayStyle.desp,
                         options: FeedDisplayStyle.allCases.filter({ !$0.hideInSetting }),
                         optionString: FeedDisplayStyle.allCases.filter({ !$0.hideInSetting }).map({ $0.desp }))
                 {
                     Settings.displayStyle = $0
                 }
-                Toggle(title: "侧边栏菜单自动切换", setting: Settings.sideMenuAutoSelectChange, onChange: Settings.sideMenuAutoSelectChange.toggle())
+                Toggle(title: "Automatically Switch Sidebar Selection", setting: Settings.sideMenuAutoSelectChange, onChange: Settings.sideMenuAutoSelectChange.toggle())
 
-                Toggle(title: "不显示详情页直接进入视频",
+                Toggle(title: "Play Videos Without Opening Details",
                        setting: Settings.direatlyEnterVideo,
                        onChange: Settings.direatlyEnterVideo.toggle())
 
-                Actions(title: "视频详情相关推荐加载模式", message: "4k以上需要大会员",
-                        current: Settings.showRelatedVideoInCurrentVC ? "页面刷新" : "新页面中打开",
+                Actions(title: "Related Videos", message: "Higher resolutions may require a membership.",
+                        current: Settings.showRelatedVideoInCurrentVC ? "Refresh current page" : "Open in a new page",
                         options: [true, false],
-                        optionString: ["页面刷新", "新页面中打开"])
+                        optionString: ["Refresh current page", "Open in a new page"])
                 {
                     Settings.showRelatedVideoInCurrentVC = $0
                 }
             }
 
-            SectionModel(title: "推荐") {
-                Toggle(title: "使用沉浸式浏览模式",
+            SectionModel(title: "Recommendations") {
+                Toggle(title: "Use Immersive Browsing",
                        setting: Settings.recommendFeedFlowEnabled,
                        onChange: Settings.recommendFeedFlowEnabled.toggle())
-                Actions(title: "沉浸式视频时长上限", message: "用于筛选沉浸式推荐中的短视频",
+                Actions(title: "Immersive Video Length Limit", message: "Filters short videos in immersive recommendations.",
                         current: Settings.featuredDurationLimit.title,
                         options: FeaturedDurationLimit.allCases,
                         optionString: FeaturedDurationLimit.allCases.map { $0.title })
                 {
                     Settings.featuredDurationLimit = $0
                 }
-                Toggle(title: "沉浸式推荐内容安全过滤",
+                Toggle(title: "Filter Sensitive Recommended Content",
                        setting: Settings.featuredContentSafetyFilterEnabled,
                        onChange: Settings.featuredContentSafetyFilterEnabled.toggle())
             }
 
-            SectionModel(title: "关注页面") {
-                Toggle(title: "关注刷视频模式",
+            SectionModel(title: "Following") {
+                Toggle(title: "Use Feed Browsing Mode",
                        setting: Settings.followsFeedFlowEnabled,
                        onChange: Settings.followsFeedFlowEnabled.toggle())
                 { _ in
@@ -175,33 +175,33 @@ class SettingsViewController: UIViewController {
                 }
             }
 
-            SectionModel(title: "音视频") {
-                Actions(title: "最高画质", message: "4k以上需要大会员",
+            SectionModel(title: "Audio & Video") {
+                Actions(title: "Maximum Video Quality", message: "Higher resolutions may require a membership.",
                         current: Settings.mediaQuality.desp,
                         options: MediaQualityEnum.allCases,
                         optionString: MediaQualityEnum.allCases.map({ $0.desp }))
                 {
                     Settings.mediaQuality = $0
                 }
-                Actions(title: "默认播放速度", message: "默认设置为1.0",
+                Actions(title: "Default Playback Speed", message: "The default is 1.0×.",
                         current: Settings.mediaPlayerSpeed.name,
                         options: PlaySpeed.blDefaults,
                         optionString: PlaySpeed.blDefaults.map({ $0.name }))
                 {
                     Settings.mediaPlayerSpeed = $0
                 }
-                Toggle(title: "Avc优先(卡顿尝试开启)", setting: Settings.preferAvc, onChange: Settings.preferAvc.toggle())
-                Toggle(title: "多 CDN 并发加速", setting: Settings.multiCDNEnabled, onChange: Settings.multiCDNEnabled.toggle())
-                Toggle(title: "无损音频和杜比全景声", setting: Settings.losslessAudio, onChange: Settings.losslessAudio.toggle())
-                Toggle(title: "匹配视频内容", setting: Settings.contentMatch, onChange: Settings.contentMatch.toggle())
-                Toggle(title: "仅在HDR视频匹配视频内容", setting: Settings.contentMatchOnlyInHDR, onChange: Settings.contentMatchOnlyInHDR.toggle())
+                Toggle(title: "Prefer AVC (try if playback stutters)", setting: Settings.preferAvc, onChange: Settings.preferAvc.toggle())
+                Toggle(title: "Multi-CDN Acceleration", setting: Settings.multiCDNEnabled, onChange: Settings.multiCDNEnabled.toggle())
+                Toggle(title: "Lossless Audio and Dolby Atmos", setting: Settings.losslessAudio, onChange: Settings.losslessAudio.toggle())
+                Toggle(title: "Match Video Content", setting: Settings.contentMatch, onChange: Settings.contentMatch.toggle())
+                Toggle(title: "Only Match Video Content for HDR", setting: Settings.contentMatchOnlyInHDR, onChange: Settings.contentMatchOnlyInHDR.toggle())
             }
 
-            SectionModel(title: "进度控制") {
-                Toggle(title: "从上次退出的位置继续播放", setting: Settings.continuePlay, onChange: Settings.continuePlay.toggle())
-                Toggle(title: "自动跳过片头片尾", setting: Settings.autoSkip, onChange: Settings.autoSkip.toggle())
-                Toggle(title: "连续播放", setting: Settings.continouslyPlay, onChange: Settings.continouslyPlay.toggle())
-                Actions(title: "空降助手广告屏蔽", message: "",
+            SectionModel(title: "Playback") {
+                Toggle(title: "Resume Where You Left Off", setting: Settings.continuePlay, onChange: Settings.continuePlay.toggle())
+                Toggle(title: "Automatically Skip Intros and Credits", setting: Settings.autoSkip, onChange: Settings.autoSkip.toggle())
+                Toggle(title: "Autoplay Next Video", setting: Settings.continouslyPlay, onChange: Settings.continouslyPlay.toggle())
+                Actions(title: "SponsorBlock", message: "",
                         current: Settings.enableSponsorBlock.title,
                         options: SponsorBlockType.allCases,
                         optionString: SponsorBlockType.allCases.map({ $0.title }))
@@ -210,34 +210,34 @@ class SettingsViewController: UIViewController {
                 }
             }
 
-            SectionModel(title: "弹幕") {
-                Toggle(title: "用户自定义弹幕屏蔽", setting: Settings.enableDanmuFilter, onChange: Settings.enableDanmuFilter.toggle()) {
+            SectionModel(title: "Danmaku") {
+                Toggle(title: "Use Your Danmaku Filters", setting: Settings.enableDanmuFilter, onChange: Settings.enableDanmuFilter.toggle()) {
                     enable in
                     if enable {
                         Task {
                             let toast = await VideoDanmuFilter.shared.update()
-                            let alert = UIAlertController(title: "同步结果", message: toast, preferredStyle: .alert)
+                            let alert = UIAlertController(title: "Sync Result", message: toast, preferredStyle: .alert)
                             alert.addAction(.init(title: "Ok", style: .cancel))
                             self.present(alert, animated: true)
                         }
                     }
                 }
-                Toggle(title: "移除重复弹幕", setting: Settings.enableDanmuRemoveDup, onChange: Settings.enableDanmuRemoveDup.toggle())
-                Actions(title: "弹幕大小", message: "默认为36", current: Settings.danmuSize.title, options: DanmuSize.allCases, optionString: DanmuSize.allCases.map({ $0.title })) {
+                Toggle(title: "Hide Duplicate Danmaku", setting: Settings.enableDanmuRemoveDup, onChange: Settings.enableDanmuRemoveDup.toggle())
+                Actions(title: "Danmaku Size", message: "The default is 36 pt.", current: Settings.danmuSize.title, options: DanmuSize.allCases, optionString: DanmuSize.allCases.map({ $0.title })) {
                     Settings.danmuSize = $0
                 }
-                Actions(title: "弹幕显示区域", message: "设置弹幕显示区域",
+                Actions(title: "Danmaku Display Area", message: "Choose how much of the screen danmaku can use.",
                         current: Settings.danmuArea.title,
                         options: DanmuArea.allCases,
                         optionString: DanmuArea.allCases.map({ $0.title }))
                 {
                     Settings.danmuArea = $0
                 }
-                Toggle(title: "智能防档弹幕", setting: Settings.danmuMask, onChange: Settings.danmuMask.toggle())
-                Toggle(title: "按需本地运算智能防档弹幕(Exp)", setting: Settings.vnMask, onChange: Settings.vnMask.toggle())
+                Toggle(title: "Avoid On-screen Content", setting: Settings.danmuMask, onChange: Settings.danmuMask.toggle())
+                Toggle(title: "Use On-device Content Avoidance (Experimental)", setting: Settings.vnMask, onChange: Settings.vnMask.toggle())
 
                 // 添加弹幕透明度设置
-                Actions(title: "弹幕透明度", message: "调整弹幕的透明度",
+                Actions(title: "Danmaku Opacity", message: "Adjust danmaku transparency.",
                         current: Settings.danmuAlpha.title,
                         options: DanmuAlpha.allCases,
                         optionString: DanmuAlpha.allCases.map({ $0.title }))
@@ -246,7 +246,7 @@ class SettingsViewController: UIViewController {
                 }
 
                 // 添加弹幕描边宽度设置
-                Actions(title: "弹幕描边宽度", message: "调整弹幕描边的粗细",
+                Actions(title: "Danmaku Outline Width", message: "Adjust danmaku outline thickness.",
                         current: Settings.danmuStrokeWidth.title,
                         options: DanmuStrokeWidth.allCases,
                         optionString: DanmuStrokeWidth.allCases.map({ $0.title }))
@@ -255,19 +255,12 @@ class SettingsViewController: UIViewController {
                 }
 
                 // 添加弹幕描边透明度设置
-                Actions(title: "弹幕描边透明度", message: "调整弹幕描边的透明度",
+                Actions(title: "Danmaku Outline Opacity", message: "Adjust danmaku outline transparency.",
                         current: Settings.danmuStrokeAlpha.title,
                         options: DanmuStrokeAlpha.allCases,
                         optionString: DanmuStrokeAlpha.allCases.map({ $0.title }))
                 { value in
                     Settings.danmuStrokeAlpha = value
-                }
-            }
-
-            SectionModel(title: "港澳台解锁") {
-                Toggle(title: "解锁港澳台番剧限制", setting: Settings.areaLimitUnlock, onChange: Settings.areaLimitUnlock.toggle())
-                TextField(title: "设置港澳台解析服务器", message: "为了安全考虑建议自建服务器，公共服务器可用性难保证，请多尝试几个。\n公共服务器请参考：http://985.so/mjq9u", current: Settings.areaLimitCustomServer, placeholder: "api.example.com") {
-                    Settings.areaLimitCustomServer = $0 ?? ""
                 }
             }
         }
@@ -279,7 +272,7 @@ extension SettingsViewController {
                 onChange: @autoclosure @escaping () -> Void,
                 extraAction: ((Bool) -> Void)? = nil) -> CellModel
     {
-        return CellModel(title: title, desp: setting() ? "开" : "关") {
+        return CellModel(title: title, desp: setting() ? "On" : "Off") {
             update in
             onChange()
             extraAction?(setting())
@@ -326,7 +319,7 @@ extension SettingsViewController {
                 textField.isSecureTextEntry = isSecureTextEntry
             }
 
-            let action = UIAlertAction(title: "确定", style: .default) { _ in
+            let action = UIAlertAction(title: "Done", style: .default) { _ in
                 onSubmit?(alert.textFields![0].text)
                 update()
             }
@@ -462,9 +455,9 @@ extension FeedDisplayStyle {
     var desp: String {
         switch self {
         case .large:
-            return "3个"
+            return "3"
         case .normal:
-            return "4个"
+            return "4"
         case .sideBar:
             return "-"
         }

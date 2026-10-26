@@ -23,7 +23,7 @@ class LoginViewController: UIViewController {
 
     private let regenerateButton: UIButton = {
         var config = UIButton.Configuration.plain()
-        config.title = "重新生成二维码"
+        config.title = "Generate New QR Code"
         config.contentInsets = NSDirectionalEdgeInsets(top: 20, leading: 40, bottom: 20, trailing: 40)
 
         let button = UIButton(configuration: config)
@@ -46,7 +46,7 @@ class LoginViewController: UIViewController {
 
     private let titleLabel: UILabel = {
         let label = UILabel()
-        label.text = "账号登录"
+        label.text = "Sign In"
         label.font = UIFont.preferredFont(forTextStyle: .title1)
         label.translatesAutoresizingMaskIntoConstraints = false
         return label
@@ -54,7 +54,7 @@ class LoginViewController: UIViewController {
 
     private let guideLabel: UILabel = {
         let label = UILabel()
-        label.text = "1 请打开BiliBili官方手机客户端扫码登录\n\n2. 如果登录失败尝试点击重新生成二维码"
+        label.text = "1. Open the official Bilibili app and scan this QR code.\n\n2. If sign-in fails, generate a new QR code and try again."
         label.font = UIFont.preferredFont(forTextStyle: .headline)
         label.numberOfLines = 0
         label.lineBreakMode = .byTruncatingTail

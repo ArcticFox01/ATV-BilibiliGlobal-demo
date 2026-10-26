@@ -25,33 +25,33 @@ enum TabBarPage: String, CaseIterable, Codable {
     var title: String {
         switch self {
         case .live:
-            return "直播"
+            return "Live"
         case .feed:
-            return "推荐"
+            return "For You"
         case .tvRecommend:
-            return "TV推荐"
+            return "TV Picks"
         case .hot:
-            return "热门"
+            return "Trending"
         case .ranking:
-            return "排行榜"
+            return "Rankings"
         case .follows:
-            return "关注"
+            return "Following"
         case .favorite:
-            return "收藏"
+            return "Favorites"
         case .personal:
-            return "我的"
+            return "Profile"
         case .search:
-            return "搜索"
+            return "Search"
         case .followBangumi:
-            return "追番追剧"
+            return "Shows"
         case .followUps:
-            return "关注UP"
+            return "Creators"
         case .toView:
-            return "稍后再看"
+            return "Watch Later"
         case .history:
-            return "历史记录"
+            return "History"
         case .weeklyWatch:
-            return "每周必看"
+            return "Weekly Picks"
         }
     }
 

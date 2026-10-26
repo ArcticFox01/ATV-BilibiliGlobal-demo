@@ -123,11 +123,11 @@ final class VideoPlayerActionInfoViewController: UIViewController {
         var title: String {
             switch self {
             case .follow:
-                return "关注博主"
+                return "Follow Creator"
             case .like:
-                return "点赞视频"
+                return "Like Video"
             case .favorite:
-                return "收藏视频"
+                return "Favorite Video"
             }
         }
 
@@ -196,7 +196,7 @@ final class VideoPlayerActionInfoViewController: UIViewController {
     init(detail: VideoDetail?) {
         aid = detail?.View.aid ?? 0
         ownerMid = detail?.View.owner.mid ?? 0
-        let followerText = "\((detail?.Card.follower ?? 0).numberString())粉丝"
+        let followerText = "\((detail?.Card.follower ?? 0).numberString()) followers"
         let likeCount = detail?.View.stat.like ?? 0
         let favoriteCount = detail?.View.stat.favorite ?? 0
         entries = [
@@ -205,7 +205,7 @@ final class VideoPlayerActionInfoViewController: UIViewController {
             Entry(kind: .favorite, isOn: false, valueText: favoriteCount.numberString(), countValue: favoriteCount),
         ]
         super.init(nibName: nil, bundle: nil)
-        title = "互动"
+        title = "Actions"
         loadRemoteStatesIfNeeded()
     }
 
@@ -342,7 +342,7 @@ final class VideoPlayerActionInfoViewController: UIViewController {
             return
         }
 
-        let alert = UIAlertController(title: "收藏", message: nil, preferredStyle: .actionSheet)
+        let alert = UIAlertController(title: "Favorites", message: nil, preferredStyle: .actionSheet)
         for fav in favList {
             alert.addAction(UIAlertAction(title: fav.title, style: .default) { [weak self] _ in
                 guard let self else { return }
@@ -356,7 +356,7 @@ final class VideoPlayerActionInfoViewController: UIViewController {
                 WebRequest.requestFavorite(aid: self.aid, mid: fav.id)
             })
         }
-        alert.addAction(UIAlertAction(title: "取消", style: .cancel) { [weak self] _ in
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel) { [weak self] _ in
             self?.inFlightKinds.remove(.favorite)
         })
 

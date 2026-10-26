@@ -219,15 +219,14 @@ enum ApiRequest {
                 handler?(.success(token: res.tokenInfo, cookies: cookies))
             case let .failure(error):
                 switch error {
-                case let .statusFail(code, _):
+                case let .statusFail(code, message):
+                    Logger.info("[qr] poll status: \(code) \(message)")
                     switch code {
                     case 86038: handler?(.expire)
-                    case 86039: handler?(.waiting)
-                    default:
-                        break
+                    case 86039, 86090, 86101: handler?(.waiting)
+                    default: Logger.warn("[qr] unexpected poll status: \(code)")
                     }
-                default:
-                    break
+                default: Logger.warn("[qr] poll request failed: \(error)")
                 }
             }
         }

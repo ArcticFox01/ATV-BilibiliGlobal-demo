@@ -12,18 +12,18 @@ import UIKit
 class LiveViewController: CategoryViewController {
     override func viewDidLoad() {
         categories = [
-            CategoryDisplayModel(title: "关注", contentVC: MyLiveViewController()),
-            CategoryDisplayModel(title: "推荐", contentVC: AreaLiveViewController(areaID: -1)),
-            CategoryDisplayModel(title: "人气", contentVC: AreaLiveViewController(areaID: 0)),
-            CategoryDisplayModel(title: "娱乐", contentVC: AreaLiveViewController(areaID: 1)),
-            CategoryDisplayModel(title: "虚拟主播", contentVC: AreaLiveViewController(areaID: 9)),
-            CategoryDisplayModel(title: "网游", contentVC: AreaLiveViewController(areaID: 2)),
-            CategoryDisplayModel(title: "手游", contentVC: AreaLiveViewController(areaID: 3)),
-            CategoryDisplayModel(title: "单机", contentVC: AreaLiveViewController(areaID: 6)),
-            CategoryDisplayModel(title: "生活", contentVC: AreaLiveViewController(areaID: 10)),
-            CategoryDisplayModel(title: "电台", contentVC: AreaLiveViewController(areaID: 5)),
-            CategoryDisplayModel(title: "知识", contentVC: AreaLiveViewController(areaID: 11)),
-            CategoryDisplayModel(title: "赛事", contentVC: AreaLiveViewController(areaID: 13)),
+            CategoryDisplayModel(title: "Following", contentVC: MyLiveViewController()),
+            CategoryDisplayModel(title: "Recommended", contentVC: AreaLiveViewController(areaID: -1)),
+            CategoryDisplayModel(title: "Popular", contentVC: AreaLiveViewController(areaID: 0)),
+            CategoryDisplayModel(title: "Entertainment", contentVC: AreaLiveViewController(areaID: 1)),
+            CategoryDisplayModel(title: "VTubers", contentVC: AreaLiveViewController(areaID: 9)),
+            CategoryDisplayModel(title: "Online Games", contentVC: AreaLiveViewController(areaID: 2)),
+            CategoryDisplayModel(title: "Mobile Games", contentVC: AreaLiveViewController(areaID: 3)),
+            CategoryDisplayModel(title: "Single-player", contentVC: AreaLiveViewController(areaID: 6)),
+            CategoryDisplayModel(title: "Lifestyle", contentVC: AreaLiveViewController(areaID: 10)),
+            CategoryDisplayModel(title: "Radio", contentVC: AreaLiveViewController(areaID: 5)),
+            CategoryDisplayModel(title: "Knowledge", contentVC: AreaLiveViewController(areaID: 11)),
+            CategoryDisplayModel(title: "Esports", contentVC: AreaLiveViewController(areaID: 13)),
         ]
         super.viewDidLoad()
     }

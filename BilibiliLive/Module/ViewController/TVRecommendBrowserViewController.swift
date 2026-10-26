@@ -60,12 +60,12 @@ final class TVRecommendFeedFlowDataSource: FeedFlowDataSource {
         let seenItemKeys: Set<String>
     }
 
-    let title = "TV推荐"
-    let defaultPreviewHintText = "停留后自动预览，按确认键进入推荐视频流"
-    let loadingHintText = "正在加载推荐视频..."
-    let emptyStateText = "当前暂无可展示的推荐视频"
-    let emptyHintText = "稍后再试或切换账号刷新推荐内容"
-    let loadFailureText = "推荐视频加载失败，请稍后重试"
+    let title = "TV Picks"
+    let defaultPreviewHintText = "Preview starts automatically. Press Select to open the recommended video feed."
+    let loadingHintText = "Loading recommended videos..."
+    let emptyStateText = "There are no recommended videos to show right now."
+    let emptyHintText = "Try again later or switch accounts to refresh recommendations."
+    let loadFailureText = "Couldn't load recommended videos. Please try again later."
 
     var reloadToken: String {
         "tv-web-\(currentAccountMID)"

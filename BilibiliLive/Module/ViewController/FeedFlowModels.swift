@@ -111,11 +111,11 @@ protocol FeedFlowDataSource: AnyObject {
 
 extension FeedFlowDataSource {
     var autoReloadInterval: TimeInterval? { nil }
-    var defaultPreviewHintText: String { "停留后自动预览，按确认键进入视频流" }
-    var loadingHintText: String { "正在加载视频..." }
-    var emptyStateText: String { "当前视频较少，请稍后重试" }
-    var emptyHintText: String { "稍后再试" }
-    var loadFailureText: String { "加载失败，请稍后重试" }
+    var defaultPreviewHintText: String { "Preview starts automatically. Press Select to open the video feed." }
+    var loadingHintText: String { "Loading videos..." }
+    var emptyStateText: String { "There are only a few videos right now. Please try again later." }
+    var emptyHintText: String { "Please try again later." }
+    var loadFailureText: String { "Couldn't load videos. Please try again later." }
     var initialTargetCount: Int { 12 }
     var initialMaxSourcePages: Int { 5 }
     var trailingPrefetchTargetCount: Int { 8 }

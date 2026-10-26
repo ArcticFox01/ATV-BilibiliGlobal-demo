@@ -23,9 +23,9 @@ platform :tvos do
     FastlaneCore::CommandExecutor.execute(command: "cd .. && mv App.xcarchive/Products/Applications ./Payload")
     zip(
       path: "./Payload",
-      output_path: "BilbiliAtvDemo"
+      output_path: "BilibiliGlobalTV"
     )
-    sh "cd .. && mv BilbiliAtvDemo.zip BilbiliAtvDemo.ipa"
+    sh "cd .. && mv BilibiliGlobalTV.zip BilibiliGlobalTV.ipa"
     sh "cd .. && rm -rf Payload *.xcarchive *.zip || true"
   end
 end

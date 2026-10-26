@@ -100,9 +100,9 @@ class PersonalViewController: UIViewController, BLTabBarContentVCProtocol {
     func setupData() {
         cellModels.removeAll()
 
-        let setting = CellModel(title: "设置", contentVC: SettingsViewController())
+        let setting = CellModel(title: "Settings", contentVC: SettingsViewController())
         cellModels.append(setting)
-        cellModels.append(CellModel(title: "账号切换", autoSelect: false, action: { [weak self] in
+        cellModels.append(CellModel(title: "Switch Account", autoSelect: false, action: { [weak self] in
             let controller = AccountSwitcherViewController()
             controller.modalPresentationStyle = .overFullScreen
             self?.present(controller, animated: true)
@@ -114,7 +114,7 @@ class PersonalViewController: UIViewController, BLTabBarContentVCProtocol {
             }
         }
 
-        let logout = CellModel(title: "登出", autoSelect: false) {
+        let logout = CellModel(title: "Sign Out", autoSelect: false) {
             [weak self] in
             self?.actionLogout()
         }
@@ -149,8 +149,8 @@ class PersonalViewController: UIViewController, BLTabBarContentVCProtocol {
     }
 
     func actionLogout() {
-        let alert = UIAlertController(title: "确定登出？", message: nil, preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: "确定", style: .default) {
+        let alert = UIAlertController(title: "Sign out of this account?", message: nil, preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "Sign Out", style: .default) {
             _ in
             WebRequest.logout {
                 ApiRequest.logout { hasRemainingAccount in
@@ -162,7 +162,7 @@ class PersonalViewController: UIViewController, BLTabBarContentVCProtocol {
                 }
             }
         })
-        alert.addAction(UIAlertAction(title: "取消", style: .cancel))
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
         present(alert, animated: true)
     }
 
@@ -180,7 +180,7 @@ class PersonalViewController: UIViewController, BLTabBarContentVCProtocol {
 
     private func updateAccountInfo() {
         guard let account = AccountManager.shared.activeAccount else {
-            usernameLabel.text = "未登录"
+            usernameLabel.text = "Not signed in"
             avatarImageView.image = nil
             return
         }

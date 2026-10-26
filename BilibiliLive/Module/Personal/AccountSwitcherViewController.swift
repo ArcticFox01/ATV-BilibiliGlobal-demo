@@ -66,17 +66,17 @@ final class AccountSwitcherViewController: UIViewController {
 
     private func setupHeader() {
         let contentView = containerView.contentView
-        titleLabel.text = "账号管理"
+        titleLabel.text = "Accounts"
         titleLabel.font = UIFont.systemFont(ofSize: 48, weight: .semibold)
         titleLabel.textColor = .white
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
 
-        subtitleLabel.text = "快速切换登录账号或添加新的账号"
+        subtitleLabel.text = "Quickly switch accounts or add a new one."
         subtitleLabel.font = UIFont.systemFont(ofSize: 26, weight: .regular)
         subtitleLabel.textColor = UIColor.white.withAlphaComponent(0.8)
         subtitleLabel.translatesAutoresizingMaskIntoConstraints = false
 
-        closeButton.setTitle("关闭", for: .normal)
+        closeButton.setTitle("Close", for: .normal)
         closeButton.setTitleColor(.white, for: .normal)
         closeButton.titleLabel?.font = UIFont.systemFont(ofSize: 30, weight: .medium)
         closeButton.translatesAutoresizingMaskIntoConstraints = false
@@ -234,7 +234,7 @@ private final class AccountSwitcherCell: UICollectionViewCell {
         nameLabel.numberOfLines = 2
 
         badgeLabel.translatesAutoresizingMaskIntoConstraints = false
-        badgeLabel.text = "当前使用"
+        badgeLabel.text = "Active"
         badgeLabel.font = UIFont.systemFont(ofSize: 22, weight: .semibold)
         badgeLabel.textColor = .white
         badgeLabel.backgroundColor = UIColor.systemBlue
@@ -328,7 +328,7 @@ private final class AccountSwitcherAddCell: UICollectionViewCell {
         iconView.tintColor = .systemBlue
 
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
-        titleLabel.text = "添加账号"
+        titleLabel.text = "Add Account"
         titleLabel.font = UIFont.systemFont(ofSize: 30, weight: .medium)
         titleLabel.textColor = .white
         titleLabel.textAlignment = .center
