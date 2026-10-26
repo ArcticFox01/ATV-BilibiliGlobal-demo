@@ -18,6 +18,12 @@ extension WebRequest {
     {
         do {
             let urlObj = try url.asURL()
+            // WBI signatures are issued for the main API host. Passing them to
+            // api.live causes Live's risk-control response (-352).
+            guard urlObj.host == "api.bilibili.com" else {
+                onComplete(nil)
+                return
+            }
             if method == .get {
                 var request = URLRequest(url: urlObj)
                 request.method = .get
