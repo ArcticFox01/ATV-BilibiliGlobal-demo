@@ -93,6 +93,9 @@ enum WebRequest {
         if !afheaders.contains(where: { $0.name == "Referer" }) {
             afheaders.add(HTTPHeader(name: "Referer", value: Keys.referer))
         }
+        if !afheaders.contains(where: { $0.name == "Accept-Language" }) {
+            afheaders.add(HTTPHeader(name: "Accept-Language", value: "en-US,en;q=0.9"))
+        }
 
         var session = Session.default
         if noCookie {
@@ -195,7 +198,7 @@ enum WebRequest {
     }
 
     static func requestIndex() {
-        requestData(url: "https://www.bilibili.com", complete: {
+        requestData(url: Keys.webBaseURL, complete: {
             _ in
             CookieHandler.shared.backupCookies()
         })
@@ -517,46 +520,6 @@ extension WebRequest {
             parameters["fourk"] = 1
         }
         return try await request(url: EndPoint.pcgPlayUrl,
-                                 parameters: parameters,
-                                 dataObj: "result")
-    }
-
-    static func requestAreaLimitPcgPlayUrl(epid: Int,
-                                           cid: Int,
-                                           area: String,
-                                           options: PlayURLRequestOptions = .regular) async throws -> VideoPlayURLInfo
-    {
-        let customServer = Settings.areaLimitCustomServer
-        guard !customServer.isEmpty else { throw ValidationError.argumentInvalid(message: "未设置解析服务器") }
-
-        // 解析服务器必须使用ep_id参数，不能使用avid参数，解析服务器一般有缓存，area和ep_id必须保持一致，要不然会被缓存拦截
-        let url = EndPoint.pcgPlayUrl.replacingOccurrences(of: "api.bilibili.com", with: customServer)
-        var parameters: [String: Any] = ["ep_id": epid,
-                                         "cid": cid,
-                                         "qn": options.qn,
-                                         "fnver": 0,
-                                         "fnval": options.fnval,
-                                         "area": area]
-        if options.supportMultiAudio {
-            parameters["support_multi_audio"] = 1
-        }
-        if options.enableFourK {
-            parameters["fourk"] = 1
-        }
-        if let access_key = ApiRequest.getToken()?.accessToken {
-            parameters["access_key"] = access_key
-        }
-        parameters["appkey"] = ApiRequest.appkey
-        parameters["local_id"] = 0
-        parameters["mobi_app"] = "android"
-
-        // 同步b站cookie给代理域
-//        var headers: [String: String] = [:]
-//        if let cookies = Session.default.sessionConfiguration.httpCookieStorage?.cookies(for: URL(string: "https://api.bilibili.com")!) {
-//            headers = HTTPCookie.requestHeaderFields(with: cookies)
-//        }
-
-        return try await request(url: url,
                                  parameters: parameters,
                                  dataObj: "result")
     }

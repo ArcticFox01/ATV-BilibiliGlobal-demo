@@ -77,19 +77,19 @@ class SearchResultViewController: UIViewController {
             for section in searchResult.result {
                 switch section {
                 case let .video(data):
-                    let list = SearchList(title: "视频", height: defaultHeight, scrollingBehavior: .continuous)
+                    let list = SearchList(title: "Videos", height: defaultHeight, scrollingBehavior: .continuous)
                     currentSnapshot.appendSections([list])
                     currentSnapshot.appendItems(data.map { .video($0) }, toSection: list)
                 case let .bangumi(data):
-                    let list = SearchList(title: "番剧", height: defaultHeight, scrollingBehavior: .continuous)
+                    let list = SearchList(title: "Anime", height: defaultHeight, scrollingBehavior: .continuous)
                     currentSnapshot.appendSections([list])
                     currentSnapshot.appendItems(data.map { .bangumi($0) }, toSection: list)
                 case let .movie(data):
-                    let list = SearchList(title: "影视", height: defaultHeight, scrollingBehavior: .none)
+                    let list = SearchList(title: "Series & Films", height: defaultHeight, scrollingBehavior: .none)
                     currentSnapshot.appendSections([list])
                     currentSnapshot.appendItems(data.map { .bangumi($0) }, toSection: list)
                 case let .user(data):
-                    let list = SearchList(title: "用户", height: .estimated(140), scrollingBehavior: .continuous)
+                    let list = SearchList(title: "Users", height: .estimated(140), scrollingBehavior: .continuous)
                     currentSnapshot.appendSections([list])
                     currentSnapshot.appendItems(data.map { .user($0) }, toSection: list)
                 case .none:
@@ -100,7 +100,7 @@ class SearchResultViewController: UIViewController {
 
         // 添加直播搜索结果
         if let liveResult, let liveRooms = liveResult.result.live_room, !liveRooms.isEmpty {
-            let list = SearchList(title: "直播", height: defaultHeight, scrollingBehavior: .continuous)
+            let list = SearchList(title: "Live", height: defaultHeight, scrollingBehavior: .continuous)
             currentSnapshot.appendSections([list])
             currentSnapshot.appendItems(liveRooms.map { .liveRoom($0) }, toSection: list)
         }
@@ -249,7 +249,7 @@ extension SearchResultViewController: UICollectionViewDelegate {
 
 extension SearchResultViewController: UISearchResultsUpdating {
     func updateSearchResults(for searchController: UISearchController) {
-        guard searchController.searchBar.text != "清空历史" else { return }
+        guard searchController.searchBar.text != "Clear History" else { return }
         if let text = searchController.searchBar.text {
             searchText = text
         }
@@ -288,7 +288,7 @@ extension SearchResultViewController: UISearchResultsUpdating {
 
     func updateSearchResults(for searchController: UISearchController, selecting searchSuggestion: any UISearchSuggestion) {
         // 选中建议词后添加搜索历史
-        if searchSuggestion.localizedDescription == "清空历史" {
+        if searchSuggestion.localizedDescription == "Clear History" {
             Settings.clearHistory()
             searchController.searchSuggestions = []
             searchController.searchBar.text = nil
@@ -317,7 +317,7 @@ private extension SearchResultViewController {
             SuggestEntry(title: $0, iconImage: UIImage(systemName: "clock"))
         }
         if !suggests.isEmpty {
-            suggests.append(SuggestEntry(title: "清空历史", iconImage: UIImage(systemName: "trash")))
+            suggests.append(SuggestEntry(title: "Clear History", iconImage: UIImage(systemName: "trash")))
         }
         return suggests
     }

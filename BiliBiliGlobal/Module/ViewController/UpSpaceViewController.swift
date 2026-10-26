@@ -56,7 +56,7 @@ class UpSpaceViewController: StandardVideoCollectionViewController<ApiRequest.Up
             make.leading.greaterThanOrEqualToSuperview().offset(40)
             make.trailing.lessThanOrEqualToSuperview().offset(-40)
         }
-        blockedMessageLabel.text = "无法查看空间内容，请将该用户移除黑名单"
+        blockedMessageLabel.text = "This creator's page is unavailable because they are blocked. Unblock them to continue."
         blockedMessageLabel.font = UIFont.systemFont(ofSize: 28, weight: .medium)
         blockedMessageLabel.textColor = UIColor(named: "titleColor") ?? .white
         blockedMessageLabel.textAlignment = .center

@@ -307,7 +307,7 @@ class VideoPlayerViewController: CommonPlayerViewController {
 
     override func playerDidStall(player: AVPlayer) {
         guard playMode == .feedFlow else { return }
-        attemptRetryOrShowRecovery(message: "播放卡住了，请选择重试或切换下一条。")
+        attemptRetryOrShowRecovery(message: "Playback stalled. Retry or switch to the next video.")
     }
 
     override func playerDidFail(player: AVPlayer) {
@@ -315,7 +315,7 @@ class VideoPlayerViewController: CommonPlayerViewController {
             super.playerDidFail(player: player)
             return
         }
-        attemptRetryOrShowRecovery(message: "当前视频加载失败，请选择重试或切换下一条。")
+        attemptRetryOrShowRecovery(message: "This video couldn't be loaded. Retry or switch to the next video.")
     }
 
     private func handlePlayInfoChanged(_ info: PlayInfo) {
@@ -362,19 +362,19 @@ class VideoPlayerViewController: CommonPlayerViewController {
     }
 
     private func showFeedFlowRecoveryAlert(message: String) {
-        let alert = UIAlertController(title: "播放异常", message: message, preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: "重试", style: .default) { [weak self] _ in
+        let alert = UIAlertController(title: "Playback Problem", message: message, preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "Retry", style: .default) { [weak self] _ in
             self?.hasRetriedCurrentItem = true
             self?.viewModel.retryCurrent()
         })
-        alert.addAction(UIAlertAction(title: "下一条", style: .default) { [weak self] _ in
+        alert.addAction(UIAlertAction(title: "Next Video", style: .default) { [weak self] _ in
             Task { [weak self] in
                 if await self?.viewModel.playNextFromSequence() == false {
                     self?.dismiss(animated: true)
                 }
             }
         })
-        alert.addAction(UIAlertAction(title: "关闭", style: .cancel))
+        alert.addAction(UIAlertAction(title: "Close", style: .cancel))
         present(alert, animated: true)
     }
 

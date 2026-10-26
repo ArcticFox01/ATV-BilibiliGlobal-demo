@@ -55,7 +55,7 @@ class LoginViewController: UIViewController {
 
     private let guideLabel: UILabel = {
         let label = UILabel()
-        label.text = "1. Open the official BiliBili mobile app and scan this QR code.\n\n2. If sign-in fails, select Generate New QR Code and try again."
+        label.text = "1. Open the official Bilibili app and scan this QR code.\n\n2. If sign-in fails, generate a new QR code and try again."
         label.font = UIFont.preferredFont(forTextStyle: .headline)
         label.numberOfLines = 0
         label.lineBreakMode = .byTruncatingTail

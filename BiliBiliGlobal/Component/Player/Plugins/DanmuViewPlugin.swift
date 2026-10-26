@@ -128,13 +128,13 @@ extension DanmuViewPlugin: CommonPlayerPlugin {
             Defaults.shared.showDanmu.toggle()
             action.image = Defaults.shared.showDanmu ? danmuImage : danmuImageDisable
         }
-        let danmuDurationMenu = UIMenu(title: "弹幕展示时长", options: [.displayInline, .singleSelection], children: [4, 6, 8].map { dur in
-            UIAction(title: "\(dur) 秒", state: dur == Settings.danmuDuration ? .on : .off) { _ in Settings.danmuDuration = dur }
+        let danmuDurationMenu = UIMenu(title: "Danmaku Duration", options: [.displayInline, .singleSelection], children: [4, 6, 8].map { dur in
+            UIAction(title: "\(dur) seconds", state: dur == Settings.danmuDuration ? .on : .off) { _ in Settings.danmuDuration = dur }
         })
-        let danmuAILevelMenu = UIMenu(title: "弹幕屏蔽等级", options: [.displayInline, .singleSelection], children: [Int32](1...10).map { level in
+        let danmuAILevelMenu = UIMenu(title: "Danmaku Filter Level", options: [.displayInline, .singleSelection], children: [Int32](1...10).map { level in
             UIAction(title: "\(level)", state: level == Settings.danmuAILevel ? .on : .off) { _ in Settings.danmuAILevel = level }
         })
-        let danmuSettingMenu = UIMenu(title: "弹幕设置", image: UIImage(systemName: "keyboard.badge.ellipsis"), children: [danmuDurationMenu, danmuAILevelMenu])
+        let danmuSettingMenu = UIMenu(title: "Danmaku Settings", image: UIImage(systemName: "keyboard.badge.ellipsis"), children: [danmuDurationMenu, danmuAILevelMenu])
 
         return [danmuAction, danmuSettingMenu]
     }

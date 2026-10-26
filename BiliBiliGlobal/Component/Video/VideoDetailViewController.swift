@@ -256,7 +256,7 @@ class VideoDetailViewController: UIViewController {
 
     private func exit(with error: Error) {
         Logger.warn(error)
-        let alertVC = UIAlertController(title: "获取失败", message: error.localizedDescription, preferredStyle: .alert)
+        let alertVC = UIAlertController(title: "Couldn't Load Video", message: error.localizedDescription, preferredStyle: .alert)
         alertVC.addAction(UIAlertAction(title: "Ok", style: .cancel, handler: { [weak self] action in
             self?.dismiss(animated: true)
         }))
@@ -325,14 +325,7 @@ class VideoDetailViewController: UIViewController {
             }
             update(with: data)
         } catch let err {
-            if case let .statusFail(code, _) = err as? RequestError, code == -404 {
-                // 解锁港澳台番剧处理
-                if let ok = await fetchAreaLimitBangumiData(), !ok {
-                    self.exit(with: err)
-                }
-            } else {
-                self.exit(with: err)
-            }
+            self.exit(with: err)
         }
 
         WebRequest.requestReplys(aid: aid) { [weak self] replys in
@@ -359,46 +352,10 @@ class VideoDetailViewController: UIViewController {
         }
     }
 
-    private func fetchAreaLimitBangumiData() async -> Bool? {
-        guard Settings.areaLimitUnlock else { return false }
-
-        do {
-            var info: ApiRequest.BangumiInfo?
-
-            if seasonId > 0 {
-                info = try await ApiRequest.requestBangumiInfo(seasonID: seasonId)
-            } else if epid > 0 {
-                info = try await ApiRequest.requestBangumiInfo(epid: epid)
-            }
-            guard let info = info else { return false }
-
-            let season = try await WebRequest.requestBangumiSeasonView(seasonID: info.season_id)
-            isBangumi = true
-            if let epi = season.episodes.first(where: { $0.ep_id == epid }) ?? season.episodes.first {
-                aid = epi.aid
-                cid = epi.cid
-                pages = season.episodes.filter { $0.section_type == 0 }.map({ VideoPage(cid: $0.cid, page: $0.aid, epid: $0.ep_id, from: "", part: $0.index + " " + ($0.index_title ?? "")) })
-
-                let userEpisodeInfo = try await WebRequest.requestUserEpisodeInfo(epid: epi.ep_id)
-
-                let data = VideoDetail(View: VideoDetail.Info(aid: aid, cid: cid, title: info.title, videos: nil, pic: epi.cover, desc: info.evaluate, owner: VideoOwner(mid: season.up_info.mid, name: season.up_info.uname, face: season.up_info.avatar), pages: nil, dynamic: nil, bvid: epi.bvid, duration: epi.durationSeconds, pubdate: epi.pubdate, ugc_season: nil, redirect_url: nil, stat: VideoDetail.Info.Stat(favorite: info.stat.favorites, coin: info.stat.coins, like: info.stat.likes, share: info.stat.share, danmaku: info.stat.danmakus, view: info.stat.views)), Related: [], Card: VideoDetail.Owner(following: userEpisodeInfo.related_up.first?.is_follow == 1, follower: season.up_info.follower))
-
-                self.data = data
-                update(with: data)
-                return true
-            }
-
-        } catch let err {
-            print(err)
-        }
-
-        return false
-    }
-
     private func update(with data: VideoDetail) {
         playCountLabel.text = data.View.stat.view.numberString()
         danmakuLabel.text = data.View.stat.danmaku.numberString()
-        followersLabel.text = (data.Card.follower ?? 0).numberString() + "粉丝"
+        followersLabel.text = (data.Card.follower ?? 0).numberString() + " followers"
         uploadTimeLabel.text = data.View.date
         bvidLabel.text = data.View.bvid
         coinButton.title = data.View.stat.coin.numberString()
@@ -413,9 +370,9 @@ class VideoDetailViewController: UIViewController {
         // 更新播放按钮标题
         if Settings.continuePlay {
             if let lastPlayCid, lastPlayCid == cid {
-                playButton.title = "继续播放"
+                playButton.title = "Resume"
             } else {
-                playButton.title = "播放"
+                playButton.title = "Play"
             }
         }
 
@@ -465,7 +422,7 @@ class VideoDetailViewController: UIViewController {
         }
 
         ugcCollectionView.reloadData()
-        ugcLabel.text = "合集 \(data.View.ugc_season?.title ?? "")  \(data.View.ugc_season?.sections.first?.title ?? "")"
+        ugcLabel.text = "Collection \(data.View.ugc_season?.title ?? "")  \(data.View.ugc_season?.sections.first?.title ?? "")"
         ugcView.isHidden = allUgcEpisodes.count == 0
         if allUgcEpisodes.count > 0 {
             ugcCollectionView.scrollToItem(at: IndexPath(item: allUgcEpisodes.map { $0.aid }.firstIndex(of: aid) ?? 0, section: 0), at: .left, animated: false)
@@ -522,9 +479,9 @@ class VideoDetailViewController: UIViewController {
 
     @IBAction func actionCoin(_ sender: Any) {
         guard didSentCoins < 2 else { return }
-        let alert = UIAlertController(title: "投币个数", message: nil, preferredStyle: .actionSheet)
+        let alert = UIAlertController(title: "Coins", message: nil, preferredStyle: .actionSheet)
         WebRequest.requestTodayCoins { todayCoins in
-            alert.message = "今日已投(\(todayCoins / 10)/5)个币"
+            alert.message = "Coins sent today: \(todayCoins / 10)/5"
         }
         let aid = aid
         alert.addAction(UIAlertAction(title: "1", style: .default) { [weak self] _ in
@@ -550,7 +507,7 @@ class VideoDetailViewController: UIViewController {
                 WebRequest.requestCoin(aid: aid, num: 2)
             })
         }
-        alert.addAction(UIAlertAction(title: "取消", style: .cancel))
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
         present(alert, animated: true)
     }
 
@@ -565,7 +522,7 @@ class VideoDetailViewController: UIViewController {
                 WebRequest.removeFavorite(aid: aid, mid: favList.map { $0.id })
                 return
             }
-            let alert = UIAlertController(title: "收藏", message: nil, preferredStyle: .actionSheet)
+            let alert = UIAlertController(title: "Favorites", message: nil, preferredStyle: .actionSheet)
             let aid = aid
             for fav in favList {
                 alert.addAction(UIAlertAction(title: fav.title, style: .default) { [weak self] _ in
@@ -574,7 +531,7 @@ class VideoDetailViewController: UIViewController {
                     WebRequest.requestFavorite(aid: aid, mid: fav.id)
                 })
             }
-            alert.addAction(UIAlertAction(title: "取消", style: .cancel))
+            alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
             present(alert, animated: true)
         }
     }
@@ -885,14 +842,14 @@ class ContentDetailViewController: UIViewController {
 
     static func createDesp(content: String) -> ContentDetailViewController {
         let vc = ContentDetailViewController()
-        vc.titleLabel.text = "简介"
+        vc.titleLabel.text = "Description"
         vc.contentTextView.text = content
         return vc
     }
 
     static func createReply(content: String) -> ContentDetailViewController {
         let vc = ContentDetailViewController()
-        vc.titleLabel.text = "评论"
+        vc.titleLabel.text = "Comments"
         vc.contentTextView.text = content
         return vc
     }

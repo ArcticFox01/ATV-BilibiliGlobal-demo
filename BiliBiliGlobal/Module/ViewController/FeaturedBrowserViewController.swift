@@ -43,12 +43,12 @@ final class FeaturedBrowserViewController: FeedFlowBrowserViewController {
 }
 
 final class FeaturedFeedFlowDataSource: FeedFlowDataSource {
-    let title = "推荐"
-    let defaultPreviewHintText = "停留后自动预览，按确认键进入短视频流"
-    let loadingHintText = "正在加载沉浸式推荐..."
-    let emptyStateText = "当前可播放的短视频较少，请稍后重试"
-    let emptyHintText = "可以在设置里调整沉浸式视频时长上限"
-    let loadFailureText = "推荐加载失败，请稍后重试"
+    let title = "For You"
+    let defaultPreviewHintText = "Preview starts automatically. Press Select to open the short-video feed."
+    let loadingHintText = "Loading immersive recommendations..."
+    let emptyStateText = "There are only a few playable short videos right now. Please try again later."
+    let emptyHintText = "You can adjust the immersive video length limit in Settings."
+    let loadFailureText = "Couldn't load recommendations. Please try again later."
 
     var reloadToken: String {
         "\(Settings.featuredDurationLimit.title)-\(Settings.featuredContentSafetyFilterEnabled)"

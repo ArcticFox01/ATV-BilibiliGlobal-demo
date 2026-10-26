@@ -13,24 +13,24 @@ struct RankCategoryInfo {
     let rid: Int
     var isSeason = false
 
-    static let all = [RankCategoryInfo(title: "全站", rid: 0),
-                      RankCategoryInfo(title: "动画", rid: 1005),
-                      RankCategoryInfo(title: "番剧", rid: 1, isSeason: true),
-                      RankCategoryInfo(title: "国创", rid: 4, isSeason: true),
-                      RankCategoryInfo(title: "音乐", rid: 1003),
-                      RankCategoryInfo(title: "舞蹈", rid: 1004),
-                      RankCategoryInfo(title: "游戏", rid: 1008),
-                      RankCategoryInfo(title: "知识", rid: 1010),
-                      RankCategoryInfo(title: "科技", rid: 1012),
-                      RankCategoryInfo(title: "运动", rid: 1018),
-                      RankCategoryInfo(title: "汽车", rid: 1013),
-                      RankCategoryInfo(title: "生活", rid: 160),
-                      RankCategoryInfo(title: "美食", rid: 1020),
-                      RankCategoryInfo(title: "动物", rid: 1024),
-                      RankCategoryInfo(title: "鬼畜", rid: 1007),
-                      RankCategoryInfo(title: "时尚", rid: 1014),
-                      RankCategoryInfo(title: "娱乐", rid: 1002),
-                      RankCategoryInfo(title: "影视", rid: 1001)]
+    static let all = [RankCategoryInfo(title: "All", rid: 0),
+                      RankCategoryInfo(title: "Animation", rid: 1005),
+                      RankCategoryInfo(title: "Anime", rid: 1, isSeason: true),
+                      RankCategoryInfo(title: "Chinese Animation", rid: 4, isSeason: true),
+                      RankCategoryInfo(title: "Music", rid: 1003),
+                      RankCategoryInfo(title: "Dance", rid: 1004),
+                      RankCategoryInfo(title: "Games", rid: 1008),
+                      RankCategoryInfo(title: "Knowledge", rid: 1010),
+                      RankCategoryInfo(title: "Technology", rid: 1012),
+                      RankCategoryInfo(title: "Sports", rid: 1018),
+                      RankCategoryInfo(title: "Cars", rid: 1013),
+                      RankCategoryInfo(title: "Lifestyle", rid: 160),
+                      RankCategoryInfo(title: "Food", rid: 1020),
+                      RankCategoryInfo(title: "Animals", rid: 1024),
+                      RankCategoryInfo(title: "Meme", rid: 1007),
+                      RankCategoryInfo(title: "Fashion", rid: 1014),
+                      RankCategoryInfo(title: "Entertainment", rid: 1002),
+                      RankCategoryInfo(title: "Series & Films", rid: 1001)]
 }
 
 class RankingViewController: CategoryViewController {

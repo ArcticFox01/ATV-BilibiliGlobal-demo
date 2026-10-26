@@ -1027,7 +1027,7 @@ actor SidxDownloader {
             let start = Date()
             if let res = try? await Self.session.request(url,
                                                          headers: ["Range": "bytes=\(range)",
-                                                                   "Referer": "https://www.bilibili.com/"])
+                                                                   "Referer": Keys.referer])
                 .serializingData().result.get(),
                 !Task.isCancelled,
                 let segment = SidxParseUtil.processIndexData(data: res),

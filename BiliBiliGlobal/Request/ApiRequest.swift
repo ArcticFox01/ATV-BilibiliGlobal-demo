@@ -246,7 +246,8 @@ enum ApiRequest {
                 handler?(.success(token: res.tokenInfo, cookies: cookies))
             case let .failure(error):
                 switch error {
-                case let .statusFail(code, _):
+                case let .statusFail(code, message):
+                    Logger.info("[qr] poll status: \(code) \(message)")
                     switch code {
                     case 86038: handler?(.expire)
                     case 86039: handler?(.waiting)

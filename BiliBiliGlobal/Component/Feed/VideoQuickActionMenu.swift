@@ -23,24 +23,24 @@ final class VideoQuickActionMenu {
         let alert = UIAlertController(title: title, message: nil, preferredStyle: .actionSheet)
 
         if addedToViewAids.contains(aid) {
-            alert.addAction(UIAlertAction(title: "移出稍后再看", style: .destructive) { [weak self, weak presenter] _ in
+            alert.addAction(UIAlertAction(title: "Remove from Watch Later", style: .destructive) { [weak self, weak presenter] _ in
                 self?.removeFromToView(aid: aid, presenter: presenter)
             })
         } else {
-            alert.addAction(UIAlertAction(title: "加入稍后再看", style: .default) { [weak self, weak presenter] _ in
+            alert.addAction(UIAlertAction(title: "Add to Watch Later", style: .default) { [weak self, weak presenter] _ in
                 self?.addToView(aid: aid, presenter: presenter)
             })
         }
 
-        alert.addAction(UIAlertAction(title: "收藏视频", style: .default) { [weak self, weak presenter] _ in
+        alert.addAction(UIAlertAction(title: "Add to Favorites", style: .default) { [weak self, weak presenter] _ in
             self?.favorite(aid: aid, presenter: presenter)
         })
 
-        alert.addAction(UIAlertAction(title: "不感兴趣", style: .default) { _ in
+        alert.addAction(UIAlertAction(title: "Not Interested", style: .default) { _ in
             ApiRequest.requestDislike(aid: aid, dislike: true)
         })
 
-        alert.addAction(UIAlertAction(title: "取消", style: .cancel))
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
         presenter.present(alert, animated: true)
     }
 
@@ -56,7 +56,7 @@ final class VideoQuickActionMenu {
                 self?.addedToViewAids.insert(aid)
             } catch let err {
                 self?.inFlightAids.remove(aid)
-                self?.showError(title: "加入稍后再看失败", error: err, presenter: presenter)
+                self?.showError(title: "Couldn't Add to Watch Later", error: err, presenter: presenter)
             }
         }
     }
@@ -71,7 +71,7 @@ final class VideoQuickActionMenu {
                 self?.addedToViewAids.remove(aid)
             } catch let err {
                 self?.inFlightAids.remove(aid)
-                self?.showError(title: "移出稍后再看失败", error: err, presenter: presenter)
+                self?.showError(title: "Couldn't Remove from Watch Later", error: err, presenter: presenter)
             }
         }
     }
@@ -84,17 +84,17 @@ final class VideoQuickActionMenu {
             do {
                 favList = try await WebRequest.requestFavVideosList()
             } catch let err {
-                self?.showError(title: "获取收藏夹失败", error: err, presenter: presenter)
+                self?.showError(title: "Couldn't Load Favorites", error: err, presenter: presenter)
                 return
             }
             guard let presenter, presenter.viewIfLoaded?.window != nil else { return }
-            let alert = UIAlertController(title: "收藏", message: nil, preferredStyle: .actionSheet)
+            let alert = UIAlertController(title: "Favorites", message: nil, preferredStyle: .actionSheet)
             for fav in favList {
                 alert.addAction(UIAlertAction(title: fav.title, style: .default) { _ in
                     WebRequest.requestFavorite(aid: aid, mid: fav.id)
                 })
             }
-            alert.addAction(UIAlertAction(title: "取消", style: .cancel))
+            alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
             presenter.present(alert, animated: true)
         }
     }

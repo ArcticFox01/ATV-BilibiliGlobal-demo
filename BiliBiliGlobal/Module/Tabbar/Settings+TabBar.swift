@@ -15,9 +15,9 @@ extension Settings {
         var title: String {
             switch self {
             case .tabBar:
-                return "导航栏"
+                return "Navigation"
             case .personal:
-                return "我的页面"
+                return "Profile"
             }
         }
     }

@@ -1,30 +1,18 @@
-# BiliBili tvOS 客户端 Demo
+# Bilibili Global for Apple TV
 
-### 本项目没有任何授权的 Testflight 发放以及任何收费版本，请注意辨别和考虑安全性问题。
+An English-first, unofficial tvOS client for [Bilibili Global](https://www.bilibili.com/en).
 
- **BiliBili tvOS 客户端 Demo 从未在任何平台上架和收费（包括AppStore与Testflight）**
+This project is not affiliated with Bilibili and is not distributed through the App Store or TestFlight. Do not pay third parties for builds of this app.
 
- 如果您在任何平台上看到有人以收费方式提供本项目的服务或应用，请注意这是**未经授权的**行为，并且与我们的原始意图不符。我们强烈谴责将本项目用于商业盈利的行为，由此引发的任何安全风险与此项目无关。
+### Features
 
+- QR-code sign-in
+- Live streams and danmaku
+- Personalized recommendations, trending videos, rankings, search, following, favorites, history, and Watch Later
+- System-player video playback with HDR, subtitles, and danmaku controls
+- Account switching and TV casting
 
-### 支持功能
-- 二维码登录
-- 云视听小电视投屏协议
-- 直播与弹幕
-- 推荐Feed
-- 热门
-- 排行榜
-- 搜索
-- 关注列表
-- 历史播放
-- 稍后再看
-- 系统播放器播放视频
-- 视频弹幕
-- 热门评论
-- 弹幕防挡
-- 云视听投屏
-- HDR播放
-- 字幕
+The app uses Bilibili's existing web endpoints with the Global (`/en`) web context. Availability is determined by Bilibili for the viewer's account and region; the app does not provide regional-content bypassing.
 
  ![](imgs/1.jpg)
  ![](imgs/2.jpg)
@@ -35,9 +23,9 @@
 ### Telegram Group
  - https://t.me/appletvbilibilidemo
 
-### 未签名iPA文件
+### Unsigned IPA
 
-从 https://github.com/yichengchen/ATV-Bilibili-demo/releases/tag/nightly 获取基于最新代码构建的
+Download nightly builds from https://github.com/yichengchen/ATV-Bilibili-demo/releases/tag/nightly.
 
 ### Links
 

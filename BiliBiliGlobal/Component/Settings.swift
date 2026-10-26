@@ -99,12 +99,6 @@ enum Settings {
     @UserDefault("Settings.requestHotWithoutCookie", defaultValue: false)
     static var requestHotWithoutCookie: Bool
 
-    @UserDefault("Settings.arealimit.unlock", defaultValue: false)
-    static var areaLimitUnlock: Bool
-
-    @UserDefault("Settings.arealimit.customServer", defaultValue: "")
-    static var areaLimitCustomServer: String
-
     @UserDefault("Settings.ui.sideMenuAutoSelectChange", defaultValue: false)
     static var sideMenuAutoSelectChange: Bool
 
@@ -182,11 +176,11 @@ enum SponsorBlockType: String, Codable, CaseIterable {
     var title: String {
         switch self {
         case .none:
-            return "关"
+            return "Off"
         case .jump:
-            return "自动跳过"
+            return "Auto Skip"
         case .tip:
-            return "手动跳过"
+            return "Ask to Skip"
         }
     }
 }
@@ -277,13 +271,13 @@ extension DanmuArea {
     var title: String {
         switch self {
         case .style_75:
-            return "3/4屏"
+            return "75% of screen"
         case .style_50:
-            return "半屏"
+            return "50% of screen"
         case .style_25:
-            return "1/4屏"
+            return "25% of screen"
         case .style_0:
-            return "不限制"
+            return "Full screen"
         }
     }
 
@@ -313,15 +307,15 @@ extension FeaturedDurationLimit {
     var title: String {
         switch self {
         case .minutes3:
-            return "3 分钟"
+            return "3 minutes"
         case .minutes5:
-            return "5 分钟"
+            return "5 minutes"
         case .minutes10:
-            return "10 分钟"
+            return "10 minutes"
         case .minutes15:
-            return "15 分钟"
+            return "15 minutes"
         case .unlimited:
-            return "不限"
+            return "Unlimited"
         }
     }
 

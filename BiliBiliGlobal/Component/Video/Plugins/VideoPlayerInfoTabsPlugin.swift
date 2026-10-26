@@ -16,18 +16,18 @@ final class VideoPlayerInfoTabsPlugin: NSObject, CommonPlayerPlugin {
         var tabTitle: String {
             switch self {
             case .uploader:
-                return "博主视频"
+                return "More from Creator"
             case .related:
-                return "相关视频"
+                return "Related Videos"
             }
         }
 
         var emptyText: String {
             switch self {
             case .uploader:
-                return "当前没有可展示的博主视频"
+                return "There are no more videos from this creator to show."
             case .related:
-                return "当前没有可展示的相关视频"
+                return "There are no related videos to show."
             }
         }
     }

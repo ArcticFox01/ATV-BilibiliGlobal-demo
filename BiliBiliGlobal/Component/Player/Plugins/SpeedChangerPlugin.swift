@@ -67,7 +67,7 @@ class SpeedChangerPlugin: NSObject, CommonPlayerPlugin {
             }
         }
         notifyView?.isHidden = false
-        notifyView?.text = "播放速度设置为 \(currentPlaySpeed.name)"
+        notifyView?.text = "Playback speed set to \(currentPlaySpeed.name)"
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
             self.fadeOutNotifyView()
@@ -86,8 +86,8 @@ class SpeedChangerPlugin: NSObject, CommonPlayerPlugin {
                 currentPlaySpeed = playSpeed
             }
         }
-        let playSpeedMenu = UIMenu(title: "播放速度", options: [.displayInline, .singleSelection], children: speedActions)
-        let menu = UIMenu(title: "播放设置", image: gearImage, identifier: UIMenu.Identifier(rawValue: "setting"), children: [playSpeedMenu])
+        let playSpeedMenu = UIMenu(title: "Playback Speed", options: [.displayInline, .singleSelection], children: speedActions)
+        let menu = UIMenu(title: "Playback Settings", image: gearImage, identifier: UIMenu.Identifier(rawValue: "setting"), children: [playSpeedMenu])
         return [menu]
     }
 }

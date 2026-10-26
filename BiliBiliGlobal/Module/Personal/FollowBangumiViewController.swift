@@ -11,8 +11,8 @@ import UIKit
 class FollowBangumiViewController: SegmentViewController {
     override func viewDidLoad() {
         categories = [
-            CategoryDisplayModel(title: "番剧", contentVC: BangumiListViewController(type: 1)),
-            CategoryDisplayModel(title: "影视", contentVC: BangumiListViewController(type: 2)),
+            CategoryDisplayModel(title: "Anime", contentVC: BangumiListViewController(type: 1)),
+            CategoryDisplayModel(title: "Series & Films", contentVC: BangumiListViewController(type: 2)),
         ]
         super.viewDidLoad()
     }
@@ -87,7 +87,7 @@ struct FollowBangumiListData: Codable, Hashable {
                 let formatter = DateFormatter()
                 formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
                 if let date = formatter.date(from: pub_time), Calendar.current.isDateInToday(date) {
-                    badge = .init(text: "更新了!")
+                    badge = .init(text: "New!")
                 }
             }
             return DisplayOverlay(leftItems: leftItems, badge: badge)

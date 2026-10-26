@@ -137,12 +137,12 @@ final class FollowsFeedFlowViewController: FeedFlowBrowserViewController {
 }
 
 final class FollowsFeedFlowDataSource: FeedFlowDataSource {
-    let title = "关注"
-    let defaultPreviewHintText = "停留后自动预览，按确认键进入视频流"
-    let loadingHintText = "正在加载关注视频..."
-    let emptyStateText = "当前关注区暂无可播放视频"
-    let emptyHintText = "可以在设置中关闭关注刷视频模式"
-    let loadFailureText = "关注加载失败，请稍后重试"
+    let title = "Following"
+    let defaultPreviewHintText = "Preview starts automatically. Press Select to open the video feed."
+    let loadingHintText = "Loading videos from creators you follow..."
+    let emptyStateText = "There are no playable videos from creators you follow right now."
+    let emptyHintText = "You can turn off Following feed browsing in Settings."
+    let loadFailureText = "Couldn't load Following. Please try again later."
     let autoReloadInterval: TimeInterval? = 60 * 60
 
     var reloadToken: String {

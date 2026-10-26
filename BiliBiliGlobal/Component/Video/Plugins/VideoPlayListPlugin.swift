@@ -36,7 +36,7 @@ class VideoPlayListPlugin: NSObject, CommonPlayerPlugin {
         }
 
         if let next {
-            let nextAction = UIAction(title: "下一条",
+            let nextAction = UIAction(title: "Next Video",
                                       image: UIImage(systemName: "forward.end.fill"),
                                       identifier: .init(rawValue: "\(nextActionIdentifierPrefix).\(next.sequenceKey)"))
             { [weak self] _ in
@@ -52,7 +52,7 @@ class VideoPlayListPlugin: NSObject, CommonPlayerPlugin {
 
     func addMenuItems(current: inout [UIMenuElement]) -> [UIMenuElement] {
         let loopImage = UIImage(systemName: "infinity")
-        let loopAction = UIAction(title: "循环播放", image: loopImage, state: Settings.loopPlay ? .on : .off) {
+        let loopAction = UIAction(title: "Loop Playback", image: loopImage, state: Settings.loopPlay ? .on : .off) {
             action in
             action.state = (action.state == .off) ? .on : .off
             Settings.loopPlay = action.state == .on
@@ -62,7 +62,7 @@ class VideoPlayListPlugin: NSObject, CommonPlayerPlugin {
             MainActor.assumeIsolated { provider.current() }
         } ?? nil
         if let currentInfo, let onShowCurrentDetail {
-            let detailAction = UIAction(title: "查看详情", image: UIImage(systemName: "info.circle")) { _ in
+            let detailAction = UIAction(title: "View Details", image: UIImage(systemName: "info.circle")) { _ in
                 onShowCurrentDetail(currentInfo)
             }
             actions.append(detailAction)
