@@ -746,5 +746,9 @@ class BVideoPlayPlugin: NSObject, CommonPlayerPlugin {
             return
         }
         playerVC.player = player
+        // Start the accelerated-transport watchdog before the first frame.  The
+        // playerDidStart callback only arrives after playback is already running,
+        // so it cannot recover an initial loading stall.
+        startNetworkLogging()
     }
 }
