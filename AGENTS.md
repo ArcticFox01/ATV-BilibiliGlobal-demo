@@ -20,20 +20,20 @@ The app uses a layered architecture with a factory-based navigation system:
 
 **Entry Point:** `AppDelegate.swift` checks login state and routes to either `LoginViewController` (QR code auth) or `BLTabBarViewController`.
 
-**Module Layer** (`BilibiliLive/Module/`) — Feature-specific view controllers:
+**Module Layer** (`BiliBiliGlobal/Module/`) — Feature-specific view controllers:
 - `Tabbar/` — Root navigation; `BLTabBarViewController` uses `TabBarPageFactory` to create tab VCs dynamically based on user-customizable ordering
 - `Live/` — Live stream playback with `LiveDanMuProvider` for real-time danmaku over WebSocket + Brotli decompression
 - `Personal/` — User account, search, follows, history, settings, tab customization
 - `ViewController/` — Feed, hot, favorites, rankings
 - `DLNA/` — UPnP Digital Media Renderer (`BiliBiliUpnpDMR`) for casting
 
-**Component Layer** (`BilibiliLive/Component/`) — Reusable subsystems:
+**Component Layer** (`BiliBiliGlobal/Component/`) — Reusable subsystems:
 - `Player/` — `CommonPlayerViewController` is the base player. `BilibiliVideoResourceLoaderDelegate` implements custom MPEG-DASH resource loading (fetches manifests, parses SIDX segments, rewrites URLs for AVPlayer)
 - `Video/` — `VideoPlayerViewController` + `VideoPlayerViewModel` for regular video; `VideoDanmuProvider` + `VideoDanmuFilter` for video danmaku; `MaskProvider/` for danmaku anti-blocking
 - `Feed/` — `FeedCollectionViewController` / `FeedCollectionViewCell` for content discovery grids
 - `CommonPlayer/` — Local SPM package with shared player utilities
 
-**Request Layer** (`BilibiliLive/Request/`) — All API communication:
+**Request Layer** (`BiliBiliGlobal/Request/`) — All API communication:
 - `WebRequest.swift` — Core HTTP layer (Alamofire-based)
 - `WebRequest+WbiSign.swift` — Request signing extension
 - `ApiRequest.swift` — Endpoint definitions, token refresh, MD5 signing, error handling (code `-101` = token expired)
