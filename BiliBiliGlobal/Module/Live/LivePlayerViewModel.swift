@@ -15,7 +15,14 @@ enum LiveError: String, LocalizedError {
     case fetchApiFail
 
     var errorDescription: String? {
-        rawValue
+        switch self {
+        case .noLiving:
+            return "This live stream has ended."
+        case .noPlaybackUrl:
+            return "No playable stream is currently available."
+        case .fetchApiFail:
+            return "Unable to load this live stream."
+        }
     }
 }
 
@@ -81,7 +88,7 @@ class LivePlayerViewModel {
                     retryCount += 1
                     if retryCount > 3 {
                         await MainActor.run {
-                            onError?("播放失败")
+                            onError?("No playable stream is currently available.")
                         }
                         return
                     }
@@ -220,7 +227,7 @@ extension WebRequest {
     }
 
     static func requestLiveRoomInit(roomID: Int) async throws -> LiveRoomInit {
-        return try await request(url: EndPoint.liveRoomInfo, parameters: ["id": roomID])
+        return try await request(url: EndPoint.liveRoomInit, parameters: ["id": roomID])
     }
 
     static func requestLiveStreams(roomID: Int) async throws -> [LiveStream] {
