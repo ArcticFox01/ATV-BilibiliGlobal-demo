@@ -52,9 +52,16 @@ class LivePlayerViewModel {
         }
 
         onPluginReady?([playPlugin, debugPlugin])
+        let fallbackInfoPlugin = BVideoInfoPlugin(title: room.title,
+                                                  subTitle: room.ownerName,
+                                                  desp: nil,
+                                                  pic: room.pic,
+                                                  viewPoints: nil)
+        onPluginReady?([fallbackInfoPlugin])
         Task {
             do {
                 try await refreshRoomsID()
+                async let detailedInfo = fetchDespInfo()
                 try await initPlayer()
 
                 let danmu = await initDanmu()
@@ -63,13 +70,10 @@ class LivePlayerViewModel {
                 }
                 self.onPluginReady?(danmu + [linePlugin])
 
-                if let info = await fetchDespInfo() {
+                if let info = await detailedInfo {
                     let subtitle = "\(room.ownerName)·\(info.parent_area_name) \(info.area_name)"
                     let desp = "\(info.description)\nTags:\(info.tags ?? "")"
                     let infoPlugin = BVideoInfoPlugin(title: info.title, subTitle: subtitle, desp: desp, pic: room.pic, viewPoints: nil)
-                    self.onPluginReady?([infoPlugin])
-                } else {
-                    let infoPlugin = BVideoInfoPlugin(title: room.title, subTitle: nil, desp: nil, pic: room.pic, viewPoints: nil)
                     self.onPluginReady?([infoPlugin])
                 }
             } catch let err {
@@ -82,6 +86,9 @@ class LivePlayerViewModel {
 
     func playerDidFailToPlay() {
         Task {
+            guard !isRecovering else { return }
+            isRecovering = true
+            defer { isRecovering = false }
             do {
                 playInfos = Array(playInfos.dropFirst())
                 if playInfos.isEmpty {
@@ -121,6 +128,7 @@ class LivePlayerViewModel {
     private let room: LiveRoom
     private var danMuProvider: LiveDanMuProvider?
     private var retryCount = 0
+    private var isRecovering = false
 
     private func refreshRoomsID() async throws {
         let info = try await WebRequest.requestLiveRoomInit(roomID: roomID)

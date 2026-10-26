@@ -15,6 +15,7 @@ class URLPlayPlugin: NSObject {
     private let referer: String
     private let isLive: Bool
     private var currentUrl: String?
+    private var startupTimeout: DispatchWorkItem?
 
     init(referer: String = "", isLive: Bool = false) {
         self.referer = referer
@@ -22,6 +23,7 @@ class URLPlayPlugin: NSObject {
     }
 
     func play(urlString: String) {
+        startupTimeout?.cancel()
         currentUrl = urlString
         let headers: [String: String] = [
             // Live CDN URLs are issued for web playback and reject the app-branded
@@ -34,6 +36,13 @@ class URLPlayPlugin: NSObject {
         let player = AVPlayer(playerItem: playerItem)
         player.automaticallyWaitsToMinimizeStalling = !isLive
         playerVC?.player = player
+
+        guard isLive else { return }
+        let timeout = DispatchWorkItem { [weak self] in
+            self?.onPlayFail?()
+        }
+        startupTimeout = timeout
+        DispatchQueue.main.asyncAfter(deadline: .now() + 10, execute: timeout)
     }
 }
 
@@ -48,12 +57,21 @@ extension URLPlayPlugin: CommonPlayerPlugin {
     }
 
     func playerDidFail(player: AVPlayer) {
+        startupTimeout?.cancel()
         onPlayFail?()
     }
 
-    func playerDidPause(player: AVPlayer) {
-        if isLive {
-            onPlayFail?()
-        }
+    func playerDidStart(player: AVPlayer) {
+        startupTimeout?.cancel()
+    }
+
+    func playerDidStall(player: AVPlayer) {
+        guard isLive else { return }
+        startupTimeout?.cancel()
+        onPlayFail?()
+    }
+
+    func playerDidCleanUp(player: AVPlayer) {
+        startupTimeout?.cancel()
     }
 }

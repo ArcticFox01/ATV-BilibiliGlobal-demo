@@ -23,7 +23,17 @@ class BVideoInfoPlugin: NSObject, CommonPlayerPlugin {
         self.viewPoints = viewPoints
     }
 
+    func playerDidLoad(playerVC: AVPlayerViewController) {
+        if let player = playerVC.player {
+            updatePlayerInfo(player: player)
+        }
+    }
+
     func playerWillStart(player: AVPlayer) {
+        updatePlayerInfo(player: player)
+    }
+
+    private func updatePlayerInfo(player: AVPlayer) {
         Task {
             async let info: () = AVPlayerMetaUtils.setPlayerInfo(title: title, subTitle: subTitle, desp: desp, pic: pic, player: player)
             if let viewPoints {
