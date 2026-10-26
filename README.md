@@ -23,9 +23,19 @@ The app uses Bilibili's existing web endpoints with the Global (`/en`) web conte
 ### Telegram Group
  - https://t.me/appletvbilibilidemo
 
-### Unsigned IPA
+### Builds and installation
 
-Download nightly builds from https://github.com/yichengchen/ATV-Bilibili-demo/releases/tag/nightly.
+Nightly, unsigned IPAs are available from https://github.com/yichengchen/ATV-Bilibili-demo/releases/tag/nightly. An unsigned IPA **cannot be installed on a normal Apple TV** by itself; a GitHub Actions build is an artifact, not a public distribution method.
+
+To run the app on your own Apple TV, open `BiliBiliGlobal.xcodeproj` in Xcode, select the app target, choose your own signing team under **Signing & Capabilities**, then select your connected Apple TV and run the app. Xcode creates a development provisioning profile that is valid only for devices registered to that team.
+
+Do not use this repository to share certificates, private keys, provisioning profiles, or App Store Connect keys. Keep signing assets in your Keychain and, if needed for CI, in encrypted GitHub Actions secrets.
+
+For distributing the app beyond your own registered devices, use one of Apple's supported paths:
+
+- **Ad Hoc distribution**: register each recipient's Apple TV UDID in a paid Apple Developer account and build an IPA with an Ad Hoc profile.
+- **TestFlight**: distribute beta builds to invited testers after App Store Connect processing.
+- **App Store**: submit a release for public availability.
 
 ### Links
 
