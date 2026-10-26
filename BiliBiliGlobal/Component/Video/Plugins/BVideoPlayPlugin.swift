@@ -25,6 +25,10 @@ class BVideoPlayPlugin: NSObject, CommonPlayerPlugin {
     // 不去动用户当前的画质模式（自动多档 fallback 还是手动锁定某一档）
     private var lastMaxQuality: Int?
     private var lastStreamIndex: Int?
+    /// A simulator, an older Apple TV, or a non-HDR display can reject an HDR
+    /// rendition after the playlist has loaded. Retry once with a real SDR
+    /// stream instead of leaving AVKit on its terminal error screen.
+    private var attemptedHDRCompatibilityFallback = false
 
     private var networkLogTimer: Timer?
     private var lastStalls = 0
@@ -119,6 +123,16 @@ class BVideoPlayPlugin: NSObject, CommonPlayerPlugin {
     }
 
     func playerDidFail(player _: AVPlayer) {
+        if !attemptedHDRCompatibilityFallback,
+           playerDelegate?.isHDR == true
+        {
+            attemptedHDRCompatibilityFallback = true
+            Task { @MainActor [weak self] in
+                await self?.recoverUnsupportedHDR()
+            }
+            return
+        }
+
         // 加速传输整体失败时有限恢复为直连；用户暂停时不擅自续播（由恢复路径保护）。
         guard transportMode == .accelerated else { return }
         Task { @MainActor [weak self] in
@@ -129,7 +143,40 @@ class BVideoPlayPlugin: NSObject, CommonPlayerPlugin {
     func playerDidLoad(playerVC: AVPlayerViewController) {
         self.playerVC = playerVC
         playerVC.player = nil
+        attemptedHDRCompatibilityFallback = false
         startLoad(urlInfo: playData.videoPlayURLInfo, playerInfo: playData.playerInfo)
+    }
+
+    @MainActor
+    private func recoverUnsupportedHDR() async {
+        guard let fallback = playData.videoPlayURLInfo.dash.video.enumerated()
+            .filter({ $0.element.id != 125 && $0.element.id != MediaQualityEnum.quality_hdr_dolby.qn })
+            .max(by: {
+                $0.element.id == $1.element.id
+                    ? $0.element.bandwidth < $1.element.bandwidth
+                    : $0.element.id < $1.element.id
+            })
+        else {
+            Logger.warn("[hdr] device rejected HDR and no SDR fallback was supplied")
+            return
+        }
+
+        Logger.warn("[hdr] device rejected HDR; falling back to SDR qn \(fallback.element.id)")
+        do {
+            let generation = beginLoadGeneration()
+            try await playmedia(urlInfo: playData.videoPlayURLInfo,
+                                playerInfo: playData.playerInfo,
+                                generation: generation,
+                                maxQuality: fallback.element.id,
+                                streamIndex: fallback.offset,
+                                isQualitySwitch: true)
+            guard loadGeneration == generation, let player = playerVC?.player else { return }
+            player.play()
+        } catch is CancellationError {
+            return
+        } catch {
+            Logger.warn("[hdr] SDR compatibility fallback failed: \(error)")
+        }
     }
 
     func playerWillStart(player: AVPlayer) {
@@ -675,6 +722,7 @@ class BVideoPlayPlugin: NSObject, CommonPlayerPlugin {
     func switchQuality(to qualityId: Int, streamIndex: Int?) async {
         guard let player = playerVC?.player else { return }
 
+        attemptedHDRCompatibilityFallback = false
         let currentTime = player.currentTime().seconds
         guard currentTime > 0 else { return }
 
