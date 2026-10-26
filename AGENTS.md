@@ -124,6 +124,7 @@ playerVC.updateMenus()   // rebuilds AVPlayerViewController info panel menus fro
 ## Important Patterns
 
 - **DASH Playback:** `BilibiliVideoResourceLoaderDelegate` intercepts `bilibili://` scheme URLs registered with AVPlayer, fetches real DASH manifests from Bilibili API, and serves segments. This is the core of video playback quality selection.
+- **HLS subtitles:** `BilibiliVideoResourceLoaderDelegate` converts Bilibili JSON/ASS subtitles into HLS WebVTT. The generated body must include `X-TIMESTAMP-MAP=LOCAL:00:00:00.000,MPEGTS:0`, and cues must be emitted in nondecreasing start-time order. ASS input order is not reliable: styled screen-title cues can appear before earlier dialogue cues. Preserve each cue's source timestamps and overlaps; sort only their emission order. If AVFoundation logs `WebVTTSamples ... -16012`, inspect ordering before changing subtitle text or language selection.
 - **Danmaku:** Video danmaku uses Protobuf (`dm.pb.swift`); live danmaku uses a custom WebSocket protocol with Brotli-compressed payloads parsed in `LiveDanMuProvider`.
 - **Request Signing:** API calls require both MD5 signing (`ApiRequest`) and WBI signing (`WebRequest+WbiSign`). Unsigned requests will fail with auth errors.
 - **Tab Customization:** Tab order is stored in `UserDefaults` and read by `BLTabBarViewController` via the factory pattern at launch.
