@@ -111,6 +111,16 @@ class CommonPlayerViewController: UIViewController {
             let newMenus = activePlugin.addMenuItems(current: &menus)
             menus.append(contentsOf: newMenus)
         }
+        // Keep subtitles beside the video-quality settings, regardless of
+        // the order in which playback plugins finish loading.
+        if let subtitleIndex = menus.firstIndex(where: { ($0 as? UIMenu)?.identifier.rawValue == "subtitles" }) {
+            let subtitles = menus.remove(at: subtitleIndex)
+            if let qualityIndex = menus.firstIndex(where: { ($0 as? UIMenu)?.identifier.rawValue == "quality" }) {
+                menus.insert(subtitles, at: qualityIndex + 1)
+            } else {
+                menus.append(subtitles)
+            }
+        }
         playerVC.transportBarCustomMenuItems = menus
     }
 
