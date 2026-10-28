@@ -35,23 +35,19 @@ enum PlayerMediaFactory {
         ]
         let asset = AVURLAsset(url: playURL, options: ["AVURLAssetHTTPHeaderFieldsKey": headers])
         let delegate = BilibiliVideoResourceLoaderDelegate()
-        delegate.setBilibili(info: urlInfo,
-                             subtitles: subtitles ?? playerInfo?.subtitle?.subtitles ?? [],
-                             aid: aid,
-                             maxQuality: maxQuality,
-                             streamIndex: streamIndex,
-                             preferredHost: preferredHost,
-                             transportMode: transportMode)
-        asset.resourceLoader.setDelegate(delegate, queue: DispatchQueue(label: "loader.\(aid).\(UUID().uuidString)"))
-        try Task.checkCancellation()
-        let playable = try await asset.load(.isPlayable)
-        try Task.checkCancellation()
-        guard playable else {
-            throw "加载资源失败"
-        }
         try await withTaskCancellationHandler {
-            await delegate.prewarmPrimaryVideoIndex()
+            await delegate.setBilibili(info: urlInfo,
+                                       subtitles: subtitles ?? playerInfo?.subtitle?.subtitles ?? [],
+                                       aid: aid,
+                                       maxQuality: maxQuality,
+                                       streamIndex: streamIndex,
+                                       preferredHost: preferredHost,
+                                       transportMode: transportMode)
+            asset.resourceLoader.setDelegate(delegate, queue: DispatchQueue(label: "loader.\(aid).\(UUID().uuidString)"))
             try Task.checkCancellation()
+            let playable = try await asset.load(.isPlayable)
+            try Task.checkCancellation()
+            guard playable else { throw "加载资源失败" }
         } onCancel: {
             delegate.cancelPendingIndexLoads()
         }

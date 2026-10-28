@@ -8,6 +8,11 @@
 import Foundation
 
 enum SidxParseUtil {
+    struct BitRates {
+        let peak: Int
+        let average: Int
+    }
+
     struct Sidx {
         let timescale: Int
         let firstOffset: Int
@@ -28,6 +33,49 @@ enum SidxParseUtil {
                 return Int(duration + 1)
             }
             return nil
+        }
+
+        /// Byte offset relative to the end of the SIDX box, including its
+        /// first_offset. Probe the segment being played, not a cached file head.
+        func segmentByteOffset(at seconds: TimeInterval) -> Int? {
+            guard timescale > 0, seconds.isFinite, !segments.isEmpty,
+                  segments.allSatisfy({ $0.type == 0 && $0.duration > 0 && $0.size > 0 }) else { return nil }
+            let target = max(0, seconds) * Double(timescale)
+            var time = Double(earliestPresentationTime)
+            var offset = firstOffset
+            for (index, segment) in segments.enumerated() {
+                time += Double(segment.duration)
+                if target < time || index == segments.count - 1 { return offset }
+                offset += segment.size
+            }
+            return nil
+        }
+
+        /// RFC 8216: measure contiguous segments spanning 0.5–1.5 target
+        /// durations. Anime's short bitrate spikes can far exceed its average.
+        var bitRates: BitRates? {
+            guard timescale > 0, !segments.isEmpty,
+                  segments.allSatisfy({ $0.type == 0 && $0.duration > 0 && $0.size > 0 }),
+                  let targetDuration = maxSegmentDuration() else { return nil }
+            let totalBytes = segments.reduce(0.0) { $0 + Double($1.size) }
+            let totalTicks = segments.reduce(0.0) { $0 + Double($1.duration) }
+            let average = totalBytes * 8 * Double(timescale) / totalTicks
+            let minimumTicks = Double(targetDuration * timescale) * 0.5
+            let maximumTicks = Double(targetDuration * timescale) * 1.5
+            var peak = average
+            for start in segments.indices {
+                var bytes = 0.0
+                var ticks = 0.0
+                for segment in segments[start...] {
+                    bytes += Double(segment.size)
+                    ticks += Double(segment.duration)
+                    if ticks > maximumTicks { break }
+                    if ticks >= minimumTicks {
+                        peak = max(peak, bytes * 8 * Double(timescale) / ticks)
+                    }
+                }
+            }
+            return BitRates(peak: Int(ceil(peak)), average: Int(ceil(average)))
         }
     }
 
