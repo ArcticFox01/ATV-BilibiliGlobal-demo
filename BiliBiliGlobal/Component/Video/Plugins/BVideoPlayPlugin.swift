@@ -6,6 +6,7 @@
 //
 
 import AVKit
+import MediaAccessibility
 import UIKit
 
 class BVideoPlayPlugin: NSObject, CommonPlayerPlugin {
@@ -159,6 +160,13 @@ class BVideoPlayPlugin: NSObject, CommonPlayerPlugin {
 
     func playerDidLoad(playerVC: AVPlayerViewController) {
         self.playerVC = playerVC
+        // Use our session selection menu; AVKit's automatic language mode can
+        // show On even when the item's legible selection is empty.
+        if #available(tvOS 26.0, *) {
+            playerVC.allowedSubtitleOptionLanguages = []
+        } else {
+            playerVC.allowedSubtitleOptionLanguages = nil
+        }
         playerVC.player = nil
         attemptedHDRCompatibilityFallback = false
         attemptedBandwidthCompatibilityFallback = false
@@ -243,9 +251,45 @@ class BVideoPlayPlugin: NSObject, CommonPlayerPlugin {
                                               }
                                           })
             current[index] = setting.replacingChildren(setting.children + [action, subtitlePosition])
-            return []
         }
-        return []
+        guard #available(tvOS 26.0, *),
+              let item = playerVC?.player?.currentItem,
+              let group = item.asset.mediaSelectionGroup(forMediaCharacteristic: .legible),
+              !group.options.isEmpty
+        else { return [] }
+        let selected = item.currentMediaSelection.selectedMediaOption(in: group)
+        let off = UIAction(title: "Off", state: selected == nil ? .on : .off) { [weak self, weak item] _ in
+            item?.select(nil, in: group)
+            self?.updateSubtitleMenu()
+        }
+        let languages = group.options.map { option in
+            UIAction(title: option.displayName, state: selected == option ? .on : .off) { [weak self, weak item] _ in
+                item?.select(option, in: group)
+                self?.updateSubtitleMenu()
+            }
+        }
+        let selection = UIMenu(title: "Subtitles", options: [.displayInline, .singleSelection], children: [off] + languages)
+        let activeProfile = MACaptionAppearanceCopyActiveProfileID() as String
+        let profiles = MACaptionAppearanceCopyProfileIDs() as? [String] ?? []
+        let styles = profiles.map { profile in
+            UIAction(title: MACaptionAppearanceCopyProfileName(profile as CFString) as String,
+                     state: profile == activeProfile ? .on : .off)
+            { [weak self] _ in
+                MACaptionAppearanceSetActiveProfileID(profile as CFString)
+                self?.updateSubtitleMenu()
+            }
+        }
+        let style = UIMenu(title: "Style", options: .singleSelection, children: styles)
+        return [UIMenu(title: "Subtitles",
+                       image: UIImage(systemName: "captions.bubble"),
+                       identifier: UIMenu.Identifier(rawValue: "subtitles"),
+                       children: [selection, style])]
+    }
+
+    private func updateSubtitleMenu() {
+        DispatchQueue.main.async { [weak self] in
+            (self?.playerVC?.parent as? CommonPlayerViewController)?.updateMenus()
+        }
     }
 
     @MainActor
@@ -261,6 +305,7 @@ class BVideoPlayPlugin: NSObject, CommonPlayerPlugin {
 
     @MainActor
     private func activateSubtitle(on player: AVPlayer) {
+        defer { updateSubtitleMenu() }
         guard let item = player.currentItem,
               let group = item.asset.mediaSelectionGroup(forMediaCharacteristic: .legible)
         else { return }
@@ -286,12 +331,7 @@ class BVideoPlayPlugin: NSObject, CommonPlayerPlugin {
             }
         }
 
-        guard let option = group.options.first(where: { $0.locale?.languageCode == "en" })
-            ?? group.defaultOption
-            ?? group.options.first
-        else { return }
         item.select(nil, in: group)
-        item.select(option, in: group)
     }
 
     @MainActor
@@ -914,7 +954,10 @@ class BVideoPlayPlugin: NSObject, CommonPlayerPlugin {
         // 密集 seek 下网络连接层疲于开连接/取消，表现为长时间无响应。降到 15s 大幅减少这种抖动。
         playerItem.preferredForwardBufferDuration = 15
 
-        let player = AVPlayer(playerItem: playerItem)
+        let player = AVPlayer()
+        // Subtitle selection belongs to this playback session, starting at Off.
+        player.appliesMediaSelectionCriteriaAutomatically = false
+        player.replaceCurrentItem(with: playerItem)
         player.automaticallyWaitsToMinimizeStalling = minimizeStalling
         player.isMuted = isMuted
         guard loadGeneration == generation, !Task.isCancelled else {
