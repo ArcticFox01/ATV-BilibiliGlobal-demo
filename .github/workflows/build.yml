@@ -12,7 +12,7 @@ jobs:
       contents: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       - uses: maxim-lobanov/setup-xcode@v1
         with:
           xcode-version: 'latest-stable'
@@ -20,10 +20,11 @@ jobs:
         run: |
           fastlane build_unsign_ipa
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
-          name: BilbiliAtvDemo.ipa
-          path: BilbiliAtvDemo.ipa
+          name: BilibiliGlobalTV.ipa
+          path: BilibiliGlobalTV.ipa
+          if-no-files-found: error
 
       # - name: List, filter and delete artifacts
       #   if: github.ref == 'refs/heads/main' && github.event_name == 'push'
@@ -46,6 +47,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          mv BilbiliAtvDemo.ipa BilbiliAtvDemo-unsigned.ipa
+          mv BilibiliGlobalTV.ipa BilbiliAtvDemo-unsigned.ipa
           gh release view "nightly" && gh release delete "nightly" -y --cleanup-tag
           gh release create "nightly" BilbiliAtvDemo-unsigned.ipa -t "Nightly" -p
