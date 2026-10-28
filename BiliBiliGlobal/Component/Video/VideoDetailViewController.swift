@@ -228,16 +228,6 @@ class VideoDetailViewController: UIViewController {
         )
     }
 
-    private func usesEnglishSeasonMetadata(_ info: BangumiInfo) -> Bool {
-        guard let title = info.title,
-              let evaluate = info.evaluate
-        else {
-            return false
-        }
-        return title.range(of: "[A-Za-z]", options: .regularExpression) != nil &&
-            evaluate.range(of: "[A-Za-z]", options: .regularExpression) != nil
-    }
-
     private func setupPageRangeCollectionView() {
         let titleLabel = pageView.subviews.compactMap { $0 as? UILabel }.first { $0.text == "Episodes" }!
 
@@ -359,7 +349,7 @@ class VideoDetailViewController: UIViewController {
                 setBangumiEpisodes(info.episodes)
             }
             let data: VideoDetail
-            if let bangumiInfo, usesEnglishSeasonMetadata(bangumiInfo) {
+            if let bangumiInfo {
                 data = makeBangumiDetail(bangumiInfo)
             } else {
                 let detail = try await WebRequest.requestDetailVideo(aid: aid)

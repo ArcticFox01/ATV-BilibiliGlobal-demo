@@ -9,6 +9,7 @@ import UIKit
 enum TabBarPage: String, CaseIterable, Codable {
     case live
     case feed
+    case anime
     case hot
     case ranking
     case follows
@@ -36,6 +37,8 @@ enum TabBarPage: String, CaseIterable, Codable {
             return "Rankings"
         case .follows:
             return "Following"
+        case .anime:
+            return "Anime"
         case .favorite:
             return "Favorites"
         case .personal:
@@ -69,7 +72,7 @@ enum TabBarPage: String, CaseIterable, Codable {
     }
 
     static var defaultTabBarPages: [TabBarPage] {
-        [.live, .feed, .hot, .ranking, .follows, .favorite, .personal, .search]
+        [.live, .feed, .anime, .hot, .ranking, .follows, .favorite, .personal, .search]
     }
 
     static var allConfigurablePages: [TabBarPage] {
