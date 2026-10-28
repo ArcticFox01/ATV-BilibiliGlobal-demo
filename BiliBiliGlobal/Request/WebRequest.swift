@@ -10,10 +10,18 @@ import Foundation
 import SwiftProtobuf
 import SwiftyJSON
 
-enum RequestError: Error {
+enum RequestError: LocalizedError {
     case networkFail
     case statusFail(code: Int, message: String)
     case decodeFail(message: String)
+
+    var errorDescription: String? {
+        switch self {
+        case .networkFail: return "Couldn't connect to Bilibili. Please try again."
+        case let .statusFail(code, message): return message.isEmpty ? "Bilibili request failed (\(code))." : message
+        case .decodeFail: return "Couldn't read the response from Bilibili. Please try again."
+        }
+    }
 }
 
 enum ValidationError: Error {

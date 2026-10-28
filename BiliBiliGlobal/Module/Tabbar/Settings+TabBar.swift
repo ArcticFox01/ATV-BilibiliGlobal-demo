@@ -90,7 +90,15 @@ extension Settings {
 
         for page in TabBarPage.allConfigurablePages where !used.contains(page) {
             let section: TabBarPageSection = TabBarPage.defaultTabBarPages.contains(page) ? .tabBar : .personal
-            result.append(.init(page: page, section: page.isFixedInTabBar ? .tabBar : section))
+            let placement = TabBarPagePlacement(page: page, section: page.isFixedInTabBar ? .tabBar : section)
+            if page == .anime {
+                // Introduce Anime after For You without resetting saved customization.
+                let feed = result.firstIndex { $0.page == .feed && $0.section == .tabBar }
+                let profile = result.firstIndex { $0.page == .personal }
+                result.insert(placement, at: feed.map { $0 + 1 } ?? profile ?? result.endIndex)
+            } else {
+                result.append(placement)
+            }
         }
 
         if !result.contains(where: { $0.page == .personal && $0.section == .tabBar }) {

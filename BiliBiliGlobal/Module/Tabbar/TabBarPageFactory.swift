@@ -25,6 +25,8 @@ class TabBarPageVCFactory {
             vc = RankingViewController()
         case .follows:
             vc = FollowsViewController()
+        case .anime:
+            vc = AnimeViewController()
         case .favorite:
             vc = FavoriteViewController()
         case .personal:
