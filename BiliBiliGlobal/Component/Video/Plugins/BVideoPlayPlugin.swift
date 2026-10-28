@@ -17,6 +17,9 @@ class BVideoPlayPlugin: NSObject, CommonPlayerPlugin {
     private let playInfo: PlayInfo
     private let playData: PlayerDetailData
     private let reportWatchHistory: Bool
+    private let watchAccountID: Int?
+    private weak var progressPlayer: AVPlayer?
+    private var progressObserver: Any?
     private let minimizeStalling: Bool
     private let isMuted: Bool
     private let mediaWarmupManager: PlayerMediaWarmupManager?
@@ -112,6 +115,7 @@ class BVideoPlayPlugin: NSObject, CommonPlayerPlugin {
         self.playInfo = playInfo
         playData = detailData
         self.reportWatchHistory = reportWatchHistory
+        watchAccountID = AccountManager.shared.activeAccount?.profile.mid
         self.minimizeStalling = minimizeStalling
         self.isMuted = isMuted
         self.mediaWarmupManager = mediaWarmupManager
@@ -120,6 +124,7 @@ class BVideoPlayPlugin: NSObject, CommonPlayerPlugin {
 
     deinit {
         networkLogTimer?.invalidate()
+        removeProgressObserver()
     }
 
     /// 供 DebugPlugin 浮层显示的网络诊断信息
@@ -219,7 +224,42 @@ class BVideoPlayPlugin: NSObject, CommonPlayerPlugin {
         startNetworkLogging()
     }
 
+    func playerDidChange(player: AVPlayer) {
+        removeProgressObserver()
+        guard reportWatchHistory, playData.epid ?? 0 > 0 else { return }
+        progressPlayer = player
+        progressObserver = player.addPeriodicTimeObserver(forInterval: CMTime(seconds: 15, preferredTimescale: 1), queue: .main) { [weak self, weak player] _ in
+            guard let player else { return }
+            self?.saveEpisodeProgress(player: player)
+        }
+    }
+
+    func playerDidPause(player: AVPlayer) {
+        saveEpisodeProgress(player: player)
+    }
+
+    func playerDidEnd(player: AVPlayer) {
+        saveEpisodeProgress(player: player, completed: true)
+    }
+
+    private func saveEpisodeProgress(player: AVPlayer, completed: Bool = false) {
+        guard reportWatchHistory, let episodeID = playData.epid, episodeID > 0,
+              let duration = player.currentItem?.duration.seconds else { return }
+        EpisodeWatchStore.shared.recordPlayback(episodeID: episodeID, accountID: watchAccountID,
+                                                position: player.currentTime().seconds, duration: duration, completed: completed)
+    }
+
+    private func removeProgressObserver() {
+        if let progressObserver, let progressPlayer {
+            progressPlayer.removeTimeObserver(progressObserver)
+        }
+        progressObserver = nil
+        progressPlayer = nil
+    }
+
     func playerDidCleanUp(player: AVPlayer) {
+        saveEpisodeProgress(player: player)
+        removeProgressObserver()
         stopNetworkLogging()
         player.pause()
         player.replaceCurrentItem(with: nil)
@@ -641,6 +681,7 @@ class BVideoPlayPlugin: NSObject, CommonPlayerPlugin {
     }
 
     func playerDidDismiss(playerVC: AVPlayerViewController) {
+        if let player = playerVC.player { saveEpisodeProgress(player: player) }
         guard reportWatchHistory else { return }
         guard let currentTime = playerVC.player?.currentTime().seconds, currentTime > 0 else { return }
         WebRequest.reportWatchHistory(aid: playData.aid, cid: playData.cid, currentTime: Int(currentTime), epid: playData.epid, seasonId: playData.seasonId, subType: playData.subType)

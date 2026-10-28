@@ -100,6 +100,11 @@ class VideoDetailViewController: UIViewController {
     private var allUgcEpisodes = [VideoDetail.Info.UgcSeason.UgcVideoInfo]()
 
     private var subscriptions = [AnyCancellable]()
+    private var episodeProgressTask: Task<Void, Never>?
+
+    deinit {
+        episodeProgressTask?.cancel()
+    }
 
     static func create(aid: Int, cid: Int?, epid: Int? = nil) -> VideoDetailViewController {
         let vc = UIStoryboard(name: "Main", bundle: .main).instantiateViewController(identifier: String(describing: self)) as! VideoDetailViewController
@@ -164,19 +169,87 @@ class VideoDetailViewController: UIViewController {
             self?.view.setNeedsLayout()
         }.store(in: &subscriptions)
 
+        NotificationCenter.default.publisher(for: EpisodeWatchStore.didChangeNotification)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in self?.updateVisibleEpisodeProgress() }
+            .store(in: &subscriptions)
+        NotificationCenter.default.publisher(for: AccountManager.didUpdateNotification)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                self?.updateVisibleEpisodeProgress()
+                self?.refreshEpisodeProgress()
+            }.store(in: &subscriptions)
+
         Task { await fetchData() }
+    }
+
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        updateVisibleEpisodeProgress()
+        refreshEpisodeProgress()
     }
 
     override var preferredFocusedView: UIView? {
         return playButton
     }
 
-    private func setBangumiEpisodes(_ episodes: [BangumiInfo.Episode]) {
-        pages = episodes.map { VideoPage(cid: $0.cid, page: $0.aid, epid: $0.id, from: "", part: $0.title + " " + $0.long_title) }
+    private func setBangumiEpisodes(_ info: BangumiInfo, accountID: Int?) {
+        pages = info.episodes.map { VideoPage(cid: $0.cid, page: $0.aid, epid: $0.id, from: "", part: $0.title + " " + $0.long_title) }
         episodeCovers.removeAll()
-        for episode in episodes {
+        for episode in info.episodes {
             episodeCovers[episode.id] = episode.cover
         }
+        if AccountManager.shared.activeAccount?.profile.mid == accountID {
+            importEpisodeProgress(info)
+        }
+    }
+
+    private func importEpisodeProgress(_ info: BangumiInfo) {
+        guard let progress = info.user_status?.progress,
+              let episode = info.findEpisodeById(progress.last_ep_id) else { return }
+        EpisodeWatchStore.shared.importProgress(episodeID: episode.id,
+                                                accountID: AccountManager.shared.activeAccount?.profile.mid,
+                                                position: progress.last_time, duration: Double(episode.duration ?? 0) / 1_000)
+    }
+
+    private func refreshEpisodeProgress() {
+        episodeProgressTask?.cancel()
+        guard isBangumi, data != nil, seasonId > 0 else { return }
+        let requestedSeasonID = seasonId
+        let accountID = AccountManager.shared.activeAccount?.profile.mid
+        episodeProgressTask = Task { [weak self] in
+            do {
+                let info = try await WebRequest.requestBangumiInfo(seasonID: requestedSeasonID)
+                guard let self, !Task.isCancelled, self.seasonId == requestedSeasonID,
+                      AccountManager.shared.activeAccount?.profile.mid == accountID else { return }
+                self.importEpisodeProgress(info)
+                self.updateVisibleEpisodeProgress()
+            } catch {
+                // Retain locally known status when the server is unavailable.
+                Logger.warn("Couldn't refresh episode watch progress: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    private func updateVisibleEpisodeProgress() {
+        guard isViewLoaded else { return }
+        for case let cell as EpisodeThumbnailCell in pageCollectionView.visibleCells {
+            guard let indexPath = pageCollectionView.indexPath(for: cell),
+                  pages.indices.contains(indexPath.item), let episodeID = pages[indexPath.item].epid else { continue }
+            cell.updateProgress(EpisodeWatchStore.shared.progress(for: episodeID,
+                                                                  accountID: AccountManager.shared.activeAccount?.profile.mid))
+        }
+    }
+
+    private func showEpisodeWatchOptions(_ page: VideoPage) {
+        guard let episodeID = page.epid, let accountID = AccountManager.shared.activeAccount?.profile.mid else { return }
+        let watched = EpisodeWatchStore.shared.progress(for: episodeID, accountID: accountID)?.isWatched == true
+        let alert = UIAlertController(title: page.part, message: nil, preferredStyle: .actionSheet)
+        alert.addAction(UIAlertAction(title: watched ? "Mark as Unwatched" : "Mark as Watched", style: .default) { _ in
+            EpisodeWatchStore.shared.setWatched(!watched, episodeID: episodeID, accountID: accountID)
+        })
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        present(alert, animated: true)
     }
 
     private func updatePlayProgressIfNeeded(progress: BangumiInfo.UserStatus.Progress?, episode: BangumiInfo.Episode) {
@@ -311,6 +384,7 @@ class VideoDetailViewController: UIViewController {
     }
 
     private func fetchData() async {
+        let accountID = AccountManager.shared.activeAccount?.profile.mid
         scrollView.setContentOffset(.zero, animated: false)
         setNeedsFocusUpdate()
         updateFocusIfNeeded()
@@ -332,7 +406,7 @@ class VideoDetailViewController: UIViewController {
                     epid = epi.id
                     updatePlayProgressIfNeeded(progress: info.user_status?.progress, episode: epi)
                 }
-                setBangumiEpisodes(info.episodes)
+                setBangumiEpisodes(info, accountID: accountID)
             } else if epid > 0 {
                 isBangumi = true
                 let info = try await WebRequest.requestBangumiInfo(epid: epid)
@@ -346,7 +420,7 @@ class VideoDetailViewController: UIViewController {
                 } else {
                     throw NSError(domain: "get epi fail", code: -1)
                 }
-                setBangumiEpisodes(info.episodes)
+                setBangumiEpisodes(info, accountID: accountID)
             }
             let data: VideoDetail
             if let bangumiInfo {
@@ -363,7 +437,7 @@ class VideoDetailViewController: UIViewController {
                     let info = try await WebRequest.requestBangumiInfo(epid: epid)
                     seasonId = info.season_id
                     subType = info.type
-                    setBangumiEpisodes(info.episodes)
+                    setBangumiEpisodes(info, accountID: accountID)
                     if let epi = info.episodes.first(where: { $0.id == epid }) {
                         updatePlayProgressIfNeeded(progress: info.user_status?.progress, episode: epi)
                     }
@@ -676,9 +750,11 @@ extension VideoDetailViewController: UICollectionViewDataSource {
             return cell
         case pageCollectionView:
             let page = pages[indexPath.item]
-            if let epid = page.epid, let cover = episodeCovers[epid] {
+            if let epid = page.epid {
                 let cell = collectionView.dequeueReusableCell(withReuseIdentifier: "EpisodeThumbnailCell", for: indexPath) as! EpisodeThumbnailCell
-                cell.configure(title: page.part, cover: cover)
+                cell.configure(title: page.part, cover: episodeCovers[epid],
+                               progress: EpisodeWatchStore.shared.progress(for: epid, accountID: AccountManager.shared.activeAccount?.profile.mid))
+                cell.onLongPress = { [weak self] in self?.showEpisodeWatchOptions(page) }
                 return cell
             }
             let cell = collectionView.dequeueReusableCell(withReuseIdentifier: "BLTextOnlyCollectionViewCell", for: indexPath) as! BLTextOnlyCollectionViewCell
@@ -771,6 +847,9 @@ private class EpisodeThumbnailCell: BLMotionCollectionViewCell {
     private let imageView = UIImageView()
     private let titleLabel = UILabel()
     private let gradient = CAGradientLayer()
+    private let watchedBadge = UIStackView()
+    private let progressView = UIProgressView(progressViewStyle: .default)
+    var onLongPress: (() -> Void)?
 
     override func setup() {
         super.setup()
@@ -790,8 +869,45 @@ private class EpisodeThumbnailCell: BLMotionCollectionViewCell {
         titleLabel.numberOfLines = 2
         contentView.addSubview(titleLabel)
         titleLabel.snp.makeConstraints { make in
-            make.leading.trailing.bottom.equalToSuperview().inset(12)
+            make.leading.trailing.equalToSuperview().inset(12)
+            make.bottom.equalToSuperview().inset(24)
         }
+
+        let checkmark = UIImageView(image: UIImage(systemName: "checkmark", withConfiguration: UIImage.SymbolConfiguration(pointSize: 18, weight: .bold)))
+        checkmark.tintColor = .white
+        checkmark.contentMode = .scaleAspectFit
+        let watchedLabel = UILabel()
+        watchedLabel.text = "Watched"
+        watchedLabel.font = .systemFont(ofSize: 20, weight: .semibold)
+        watchedLabel.textColor = .white
+        watchedBadge.addArrangedSubview(checkmark)
+        watchedBadge.addArrangedSubview(watchedLabel)
+        watchedBadge.spacing = 6
+        watchedBadge.alignment = .center
+        watchedBadge.isLayoutMarginsRelativeArrangement = true
+        watchedBadge.layoutMargins = UIEdgeInsets(top: 6, left: 10, bottom: 6, right: 10)
+        watchedBadge.backgroundColor = UIColor.black.withAlphaComponent(0.85)
+        watchedBadge.layer.cornerRadius = 8
+        watchedBadge.isUserInteractionEnabled = false
+        contentView.addSubview(watchedBadge)
+        watchedBadge.snp.makeConstraints { make in
+            make.top.trailing.equalToSuperview().inset(12)
+        }
+
+        progressView.progressTintColor = .white
+        progressView.trackTintColor = UIColor.white.withAlphaComponent(0.35)
+        progressView.isUserInteractionEnabled = false
+        contentView.addSubview(progressView)
+        progressView.snp.makeConstraints { make in
+            make.leading.trailing.equalToSuperview().inset(12)
+            make.bottom.equalToSuperview().inset(10)
+            make.height.equalTo(4)
+        }
+        isAccessibilityElement = true
+        accessibilityTraits = .button
+        accessibilityHint = "Press and hold for watch options."
+        addGestureRecognizer(UILongPressGestureRecognizer(target: self, action: #selector(longPressed(_:))))
+        updateProgress(nil)
     }
 
     override func layoutSubviews() {
@@ -799,15 +915,34 @@ private class EpisodeThumbnailCell: BLMotionCollectionViewCell {
         gradient.frame = contentView.bounds
     }
 
-    func configure(title: String, cover: URL) {
+    func configure(title: String, cover: URL?, progress: EpisodeWatchProgress?) {
         titleLabel.text = title
+        accessibilityLabel = title
+        updateProgress(progress)
         imageView.kf.setImage(with: cover, options: [.processor(DownsamplingImageProcessor(size: CGSize(width: 360, height: 202))), .cacheOriginalImage])
+    }
+
+    func updateProgress(_ progress: EpisodeWatchProgress?) {
+        let watched = progress?.isWatched == true
+        let fraction = progress?.fraction ?? 0
+        watchedBadge.isHidden = !watched
+        progressView.isHidden = watched || fraction <= 0
+        progressView.progress = fraction
+        accessibilityValue = watched ? "Watched" : fraction > 0 ? "\(Int(fraction * 100))% watched" : "Not watched"
+    }
+
+    @objc private func longPressed(_ gesture: UILongPressGestureRecognizer) {
+        guard gesture.state == .began else { return }
+        onLongPress?()
     }
 
     override func prepareForReuse() {
         super.prepareForReuse()
         imageView.kf.cancelDownloadTask()
         imageView.image = nil
+        onLongPress = nil
+        accessibilityLabel = nil
+        updateProgress(nil)
     }
 }
 
