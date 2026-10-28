@@ -17,6 +17,9 @@ class BVideoPlayPlugin: NSObject, CommonPlayerPlugin {
     private let playInfo: PlayInfo
     private let playData: PlayerDetailData
     private let reportWatchHistory: Bool
+    private let watchAccountID: Int?
+    private weak var progressPlayer: AVPlayer?
+    private var progressObserver: Any?
     private let minimizeStalling: Bool
     private let isMuted: Bool
     private let mediaWarmupManager: PlayerMediaWarmupManager?
@@ -112,6 +115,7 @@ class BVideoPlayPlugin: NSObject, CommonPlayerPlugin {
         self.playInfo = playInfo
         playData = detailData
         self.reportWatchHistory = reportWatchHistory
+        watchAccountID = AccountManager.shared.activeAccount?.profile.mid
         self.minimizeStalling = minimizeStalling
         self.isMuted = isMuted
         self.mediaWarmupManager = mediaWarmupManager
@@ -120,6 +124,7 @@ class BVideoPlayPlugin: NSObject, CommonPlayerPlugin {
 
     deinit {
         networkLogTimer?.invalidate()
+        removeProgressObserver()
     }
 
     /// 供 DebugPlugin 浮层显示的网络诊断信息
@@ -219,7 +224,42 @@ class BVideoPlayPlugin: NSObject, CommonPlayerPlugin {
         startNetworkLogging()
     }
 
+    func playerDidChange(player: AVPlayer) {
+        removeProgressObserver()
+        guard reportWatchHistory, playData.epid ?? 0 > 0 else { return }
+        progressPlayer = player
+        progressObserver = player.addPeriodicTimeObserver(forInterval: CMTime(seconds: 15, preferredTimescale: 1), queue: .main) { [weak self, weak player] _ in
+            guard let player else { return }
+            self?.saveEpisodeProgress(player: player)
+        }
+    }
+
+    func playerDidPause(player: AVPlayer) {
+        saveEpisodeProgress(player: player)
+    }
+
+    func playerDidEnd(player: AVPlayer) {
+        saveEpisodeProgress(player: player, completed: true)
+    }
+
+    private func saveEpisodeProgress(player: AVPlayer, completed: Bool = false) {
+        guard reportWatchHistory, let episodeID = playData.epid, episodeID > 0,
+              let duration = player.currentItem?.duration.seconds else { return }
+        EpisodeWatchStore.shared.recordPlayback(episodeID: episodeID, accountID: watchAccountID,
+                                                position: player.currentTime().seconds, duration: duration, completed: completed)
+    }
+
+    private func removeProgressObserver() {
+        if let progressObserver, let progressPlayer {
+            progressPlayer.removeTimeObserver(progressObserver)
+        }
+        progressObserver = nil
+        progressPlayer = nil
+    }
+
     func playerDidCleanUp(player: AVPlayer) {
+        saveEpisodeProgress(player: player)
+        removeProgressObserver()
         stopNetworkLogging()
         player.pause()
         player.replaceCurrentItem(with: nil)
@@ -350,8 +390,7 @@ class BVideoPlayPlugin: NSObject, CommonPlayerPlugin {
 
     private func probeCDN() {
         guard !isProbingCDN else { return }
-        let candidates = playerDelegate?.cdnCandidates ?? []
-        guard !candidates.isEmpty else {
+        guard let delegate = playerDelegate, let player = playerVC?.player else {
             cdnProbeReport = "无候选 CDN"
             return
         }
@@ -359,7 +398,13 @@ class BVideoPlayPlugin: NSObject, CommonPlayerPlugin {
         isProbingCDN = true
         cdnProbeReport = "CDN 测速中…"
         Task { @MainActor [weak self] in
-            let report = await CDNDiagnostics.run(urls: candidates, currentHost: currentHost)
+            guard let target = await delegate.cdnProbeTarget(at: player.currentTime().seconds,
+                                                             variantURI: player.currentItem?.accessLog()?.events.last?.uri)
+            else {
+                self?.isProbingCDN = false
+                return
+            }
+            let report = await CDNDiagnostics.run(urls: target.urls, currentHost: currentHost, byteOffset: target.byteOffset)
             self?.cdnProbeReport = report
             self?.isProbingCDN = false
         }
@@ -537,27 +582,37 @@ class BVideoPlayPlugin: NSObject, CommonPlayerPlugin {
             noteAcceleratedWaiting(isWaiting: isWaitingToPlay)
             return
         }
-        let requiredMbps = Double(playerDelegate?.primaryVideoBandwidth ?? 0) / 1_000_000
         Logger.info("[cdn] 检测到卡顿 (waiting=\(isWaitingToPlay), stallDelta=\(stallDelta), buffered \(String(format: "%.1f", buffered))s)，重新测速")
         Task { @MainActor [weak self] in
-            await self?.evaluateHostSwitch(currentHost: currentHost, requiredMbps: requiredMbps)
+            await self?.evaluateHostSwitch(currentHost: currentHost)
         }
     }
 
     @MainActor
-    private func evaluateHostSwitch(currentHost: String, requiredMbps: Double) async {
+    private func evaluateHostSwitch(currentHost: String) async {
         guard !isEvaluatingHostSwitch else { return }
-        guard !isUserPaused else { return }
-        let candidates = playerDelegate?.cdnCandidates ?? []
-        guard candidates.count > 1 else { return }
+        guard isWaitingToPlay, let player = playerVC?.player,
+              let item = player.currentItem, let delegate = playerDelegate else { return }
         isEvaluatingHostSwitch = true
         defer { isEvaluatingHostSwitch = false }
 
-        Logger.info("[cdn] \(currentHost) 因卡顿重新测速 \(candidates.count) 个候选")
-        let results = await CDNDiagnostics.probeAll(urls: candidates)
-        // 测速是异步的，期间用户可能已手动暂停；换源会重建 AVPlayer，必须取消
-        guard !isUserPaused else {
-            Logger.info("[cdn] 用户已暂停，取消 host 切换")
+        let probeGeneration = loadGeneration
+        let probeTime = player.currentTime().seconds
+        guard let probeTarget = await delegate.cdnProbeTarget(at: probeTime,
+                                                              variantURI: item.accessLog()?.events.last?.uri),
+            probeTarget.urls.count > 1 else { return }
+        let requiredMbps = Double(probeTarget.bandwidth) / 1_000_000
+        Logger.info("[cdn] \(currentHost) 因卡顿重新测速 \(probeTarget.urls.count) 个候选，播放位置字节 \(probeTarget.byteOffset)")
+        let results = await CDNDiagnostics.probeAll(urls: probeTarget.urls, byteOffset: probeTarget.byteOffset)
+        // Probes can outlive a refill, seek, quality change, or player teardown.
+        // Never discard a recovered buffer or apply an old probe to a new item.
+        guard loadGeneration == probeGeneration,
+              playerVC?.player === player, player.currentItem === item,
+              playerDelegate === delegate,
+              abs(player.currentTime().seconds - probeTime) < 1,
+              player.timeControlStatus == .waitingToPlayAtSpecifiedRate
+        else {
+            Logger.info("[cdn] 播放已恢复或资源已变更，取消 host 切换")
             return
         }
         let ranked = results.filter { $0.mbps != nil }.sorted { ($0.mbps ?? -1) > ($1.mbps ?? -1) }
@@ -641,6 +696,7 @@ class BVideoPlayPlugin: NSObject, CommonPlayerPlugin {
     }
 
     func playerDidDismiss(playerVC: AVPlayerViewController) {
+        if let player = playerVC.player { saveEpisodeProgress(player: player) }
         guard reportWatchHistory else { return }
         guard let currentTime = playerVC.player?.currentTime().seconds, currentTime > 0 else { return }
         WebRequest.reportWatchHistory(aid: playData.aid, cid: playData.cid, currentTime: Int(currentTime), epid: playData.epid, seasonId: playData.seasonId, subType: playData.subType)

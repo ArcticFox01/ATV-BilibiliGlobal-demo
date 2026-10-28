@@ -46,7 +46,7 @@ class BilibiliVideoResourceLoaderDelegate: NSObject, AVAssetResourceLoaderDelega
     private var audioRenditionIndex = 0
     /// Every HLS variant must advertise every codec it combines, including its
     /// external audio rendition. AVFoundation is stricter about this for HDR.
-    private var primaryAudioCodec: String?
+    private var audioCodecs = [String]()
     private(set) var playInfo: VideoPlayURLInfo?
     private var hasSubtitle = false
     private var httpServer = HttpServer()
@@ -76,6 +76,10 @@ class BilibiliVideoResourceLoaderDelegate: NSObject, AVAssetResourceLoaderDelega
     /// 播放中途检测到当前 host 吞吐撑不住时，外部（BVideoPlayPlugin）指定的优先 host，
     /// sidx 探测会把它排到候选队首，覆盖默认 URL 顺序
     private var preferredHost: String?
+    private var measuredBitRates = [VideoPlayURLInfo.DashInfo.DashMediaInfo: SidxParseUtil.BitRates]()
+    private var unindexedMedia = Set<VideoPlayURLInfo.DashInfo.DashMediaInfo>()
+    private var audioPeakBandwidth = 0
+    private var audioAverageBandwidth = 0
     deinit {
         cancelPendingIndexLoads()
         httpServer.stop()
@@ -104,7 +108,11 @@ class BilibiliVideoResourceLoaderDelegate: NSObject, AVAssetResourceLoaderDelega
         playlists.removeAll()
         audioRenditionIndex = 0
         hasAudioInMasterListAdded = false
-        primaryAudioCodec = nil
+        audioCodecs.removeAll()
+        measuredBitRates.removeAll()
+        unindexedMedia.removeAll()
+        audioPeakBandwidth = 0
+        audioAverageBandwidth = 0
         proxyAvailable = false
         proxyRegistry.removeAll()
         updateAccelerationText("")
@@ -115,17 +123,6 @@ class BilibiliVideoResourceLoaderDelegate: NSObject, AVAssetResourceLoaderDelega
 
 
         """
-    }
-
-    /// DASH manifest 的 bandwidth 是平均码率，而 HLS 的 BANDWIDTH 要求的是分片峰值码率。
-    /// 直接照搬会让 CoreMedia 每拉一个分片都判定 "Segment exceeds specified bandwidth for
-    /// variant" (-12318) 并自行上调内部估计，ABR 从起播起就在用错误的依据决策。
-    ///
-    /// 实测 B 站分片的峰值约为平均的 1.5 倍：785kbps 的流被上调到 1.21Mbps，
-    /// 3.17Mbps 的流被上调到 4.81Mbps。真实平均值仍通过 AVERAGE-BANDWIDTH 如实声明，
-    /// 稳态选流靠它，所以这里的峰值宁可略高。
-    private static func peakBandwidth(forAverage average: Int) -> Int {
-        return Int(Double(average) * 1.5)
     }
 
     private func addVideoPlayBackInfo(info: VideoPlayURLInfo.DashInfo.DashMediaInfo, url: String, duration: Int) {
@@ -171,9 +168,14 @@ class BilibiliVideoResourceLoaderDelegate: NSObject, AVAssetResourceLoaderDelega
         if supplementCodesc.count > 0 {
             supplementCodesc = ",SUPPLEMENTAL-CODECS=\"\(supplementCodesc)\""
         }
-        let codecList = ([codecs, primaryAudioCodec].compactMap { $0 }.joined(separator: ","))
+        let codecList = ([codecs] + audioCodecs).joined(separator: ",")
+        // A variant combines video with any selectable audio rendition. Use the
+        // measured segment peaks, not a fixed multiple of the DASH average.
+        // Without an index, the media-playlist fallback is one whole-file segment.
+        let peakBandwidth = (measuredBitRates[info]?.peak ?? info.bandwidth) + audioPeakBandwidth
+        let averageBandwidth = (measuredBitRates[info]?.average ?? info.bandwidth) + audioAverageBandwidth
         let content = """
-        #EXT-X-STREAM-INF:AUDIO="audio"\(subtitlePlaceHolder),CODECS="\(codecList)"\(supplementCodesc),RESOLUTION=\(info.width ?? 0)x\(info.height ?? 0),FRAME-RATE=\(framerate),BANDWIDTH=\(Self.peakBandwidth(forAverage: info.bandwidth)),AVERAGE-BANDWIDTH=\(info.bandwidth),VIDEO-RANGE=\(videoRange)
+        #EXT-X-STREAM-INF:AUDIO="audio"\(subtitlePlaceHolder),CODECS="\(codecList)"\(supplementCodesc),RESOLUTION=\(info.width ?? 0)x\(info.height ?? 0),FRAME-RATE=\(framerate),BANDWIDTH=\(peakBandwidth),AVERAGE-BANDWIDTH=\(averageBandwidth),VIDEO-RANGE=\(videoRange)
         \(URLs.customDashPrefix)\(videoInfo.count)?codec=\(info.codecs)&rate=\(info.frame_rate ?? framerate)&width=\(info.width ?? 0)&host=\(URL(string: url)?.host ?? "none")&range=\(info.id)
 
         """
@@ -203,8 +205,36 @@ class BilibiliVideoResourceLoaderDelegate: NSObject, AVAssetResourceLoaderDelega
         Logger.info("cdn candidates for qn \(video.id) (\(video.bandwidth / 1000)kbps):\n\(detail)")
     }
 
+    func cdnProbeTarget(at time: TimeInterval, variantURI: String?) async -> CDNDiagnostics.ProbeTarget? {
+        let activeIndex = variantURI.flatMap(URL.init(string:)).flatMap { url -> Int? in
+            guard url.scheme == URLs.customScheme, url.host == "dash" else { return nil }
+            return Int(url.lastPathComponent)
+        }
+        let active = activeIndex.flatMap { index -> PlaybackInfo? in
+            guard videoInfo.indices.contains(index), videoInfo[index].info.mime_type.hasPrefix("video/") else { return nil }
+            return videoInfo[index]
+        } ?? videoInfo.first { $0.info.mime_type.hasPrefix("video/") }
+        guard let active else { return nil }
+        var seenHosts = Set<String>()
+        let urls = active.info.playableURLs.filter { url in
+            guard let host = URL(string: url)?.host else { return false }
+            return seenHosts.insert(host).inserted
+        }
+        var byteOffset = 0
+        if !unindexedMedia.contains(active.info),
+           let result = await segmentInfoCache.sidx(from: active.info, preferredHost: preferredHost),
+           let relativeOffset = result.sidx.segmentByteOffset(at: time),
+           let indexEnd = active.info.segment_base.index_range.split(separator: "-").last.flatMap({ Int($0) })
+        {
+            byteOffset = indexEnd + 1 + relativeOffset
+        }
+        return CDNDiagnostics.ProbeTarget(urls: urls, byteOffset: byteOffset, bandwidth: active.info.bandwidth)
+    }
+
     private func getVideoPlayList(info: PlaybackInfo) async -> String {
-        let sidxResult = await segmentInfoCache.sidx(from: info.info, preferredHost: preferredHost)
+        // A whole-file fallback must not later become segmented media without
+        // also updating the master playlist's declared peak bitrate.
+        let sidxResult = unindexedMedia.contains(info.info) ? nil : await segmentInfoCache.sidx(from: info.info, preferredHost: preferredHost)
         let inits = info.info.segment_base.initialization.components(separatedBy: "-")
         guard let moovIdxStr = inits.last,
               let moovIdx = Int(moovIdxStr),
@@ -348,7 +378,7 @@ class BilibiliVideoResourceLoaderDelegate: NSObject, AVAssetResourceLoaderDelega
         playlists.append(playList)
     }
 
-    func setBilibili(info: VideoPlayURLInfo, subtitles: [SubtitleData], aid: Int, maxQuality: Int? = nil, streamIndex: Int? = nil, preferredHost: String? = nil, transportMode: MediaTransportMode = .direct) {
+    func setBilibili(info: VideoPlayURLInfo, subtitles: [SubtitleData], aid: Int, maxQuality: Int? = nil, streamIndex: Int? = nil, preferredHost: String? = nil, transportMode: MediaTransportMode = .direct) async {
         playInfo = info
         self.aid = aid
         self.preferredHost = preferredHost
@@ -357,7 +387,6 @@ class BilibiliVideoResourceLoaderDelegate: NSObject, AVAssetResourceLoaderDelega
         // reset() 会清 proxyAvailable；恢复本会话的模式（reset 后设置，避免被清掉）
         self.transportMode = transportMode
         hasSubtitle = subtitles.count > 0
-        primaryAudioCodec = info.dash.audio?.first?.codecs
         var videos = info.dash.video
         if Settings.preferAvc {
             let videosMap = Dictionary(grouping: videos, by: { $0.id })
@@ -419,6 +448,30 @@ class BilibiliVideoResourceLoaderDelegate: NSObject, AVAssetResourceLoaderDelega
         // 这样可以确保在同一画质等级下，AVPlayer 会选择码率最高的流
         videos.sort { $0.bandwidth > $1.bandwidth }
 
+        var audios = [VideoPlayURLInfo.DashInfo.DashMediaInfo]()
+        if Settings.losslessAudio {
+            if let dolby = info.dash.dolby?.audio {
+                if let first = dolby.first { audios.append(first) }
+            } else if let flac = info.dash.flac?.audio {
+                audios.append(flac)
+            }
+        }
+        if let first = info.dash.audio?.first { audios.append(first) }
+        audios = audios.filter { !$0.playableURLs.isEmpty }
+        // These are small index ranges, not media segments. Fetch each unique
+        // rendition concurrently and reuse the indexes when AVPlayer asks for it.
+        measuredBitRates = await segmentInfoCache.bitRates(for: videos + audios, preferredHost: preferredHost)
+        // An unused rendition must not hold a healthy one behind CDN retries.
+        // Manual quality selection can still prepare that rendition separately.
+        let indexedVideos = videos.filter { measuredBitRates[$0] != nil }
+        videos = indexedVideos.isEmpty ? Array(videos.prefix(1)) : indexedVideos
+        let indexedAudios = audios.filter { measuredBitRates[$0] != nil }
+        audios = indexedAudios.isEmpty ? Array(audios.prefix(1)) : indexedAudios
+        unindexedMedia = Set((videos + audios).filter { measuredBitRates[$0] == nil })
+        audioCodecs = Array(Set(audios.map(\.codecs))).sorted()
+        audioPeakBandwidth = audios.map { measuredBitRates[$0]?.peak ?? $0.bandwidth }.max() ?? 0
+        audioAverageBandwidth = audios.map { measuredBitRates[$0]?.average ?? $0.bandwidth }.max() ?? 0
+
         collectCDNCandidates(from: videos.first)
 
         // 添加所有 CDN 节点的 URL，让 AVPlayer 自动选择最快的
@@ -429,27 +482,10 @@ class BilibiliVideoResourceLoaderDelegate: NSObject, AVAssetResourceLoaderDelega
             }
         }
 
-        if Settings.losslessAudio {
-            if let audios = info.dash.dolby?.audio {
-                // 只添加第一个杜比音频流的第一个 URL
-                if let firstAudio = audios.first,
-                   let firstUrl = BVideoUrlUtils.sortUrls(base: firstAudio.base_url, backup: firstAudio.backup_url).first
-                {
-                    addAudioPlayBackInfo(info: firstAudio, url: firstUrl, duration: info.dash.duration)
-                }
-            } else if let audio = info.dash.flac?.audio,
-                      let firstUrl = audio.playableURLs.first
-            {
-                // 只添加第一个 FLAC 音频 URL
-                addAudioPlayBackInfo(info: audio, url: firstUrl, duration: info.dash.duration)
+        for audio in audios {
+            if let url = audio.playableURLs.first {
+                addAudioPlayBackInfo(info: audio, url: url, duration: info.dash.duration)
             }
-        }
-
-        // 只添加第一个普通音频流的第一个 URL
-        if let firstAudio = info.dash.audio?.first,
-           let firstUrl = firstAudio.playableURLs.first
-        {
-            addAudioPlayBackInfo(info: firstAudio, url: firstUrl, duration: info.dash.duration)
         }
 
         if hasSubtitle || transportMode != .direct {
@@ -479,11 +515,6 @@ class BilibiliVideoResourceLoaderDelegate: NSObject, AVAssetResourceLoaderDelega
         masterPlaylist.append("\n#EXT-X-ENDLIST\n")
 
         Logger.debug("masterPlaylist: \(masterPlaylist)")
-    }
-
-    func prewarmPrimaryVideoIndex() async {
-        guard let firstVideo = videoInfo.first else { return }
-        _ = await segmentInfoCache.sidx(from: firstVideo.info, preferredHost: preferredHost)
     }
 
     func cancelPendingIndexLoads() {
@@ -942,6 +973,11 @@ extension VideoPlayURLInfo.DashInfo.DashMediaInfo {
 }
 
 actor SidxDownloader {
+    private enum BitRateResult {
+        case media(VideoPlayURLInfo.DashInfo.DashMediaInfo, SidxParseUtil.BitRates?)
+        case deadline
+    }
+
     struct SidxResult {
         let sidx: SidxParseUtil.Sidx
         let url: String
@@ -971,6 +1007,41 @@ actor SidxDownloader {
         self.maxEntries = maxEntries
     }
 
+    func bitRates(for mediaInfos: [VideoPlayURLInfo.DashInfo.DashMediaInfo], preferredHost: String?) async -> [VideoPlayURLInfo.DashInfo.DashMediaInfo: SidxParseUtil.BitRates] {
+        let unique = Set(mediaInfos)
+        guard !unique.isEmpty, !Task.isCancelled else { return [:] }
+        return await withTaskGroup(of: BitRateResult.self) { group in
+            group.addTask {
+                try? await Task.sleep(nanoseconds: 2_000_000_000)
+                return .deadline
+            }
+            for media in unique {
+                group.addTask {
+                    guard !Task.isCancelled else { return .media(media, nil) }
+                    let result = await self.sidx(from: media, preferredHost: preferredHost)
+                    return .media(media, result?.sidx.bitRates)
+                }
+            }
+            var remaining = unique.count
+            var rates = [VideoPlayURLInfo.DashInfo.DashMediaInfo: SidxParseUtil.BitRates]()
+            for await result in group {
+                switch result {
+                case let .media(media, rate):
+                    rates[media] = rate
+                    remaining -= 1
+                case .deadline:
+                    group.cancelAll()
+                    return rates
+                }
+                if remaining == 0 {
+                    group.cancelAll()
+                    return rates
+                }
+            }
+            return rates
+        }
+    }
+
     func sidx(from info: VideoPlayURLInfo.DashInfo.DashMediaInfo, preferredHost: String? = nil) async -> SidxResult? {
         if let cached = cache[info] {
             touch(info)
@@ -993,7 +1064,11 @@ actor SidxDownloader {
         cache[info] = .inProgress(token: token, task: task)
         touch(info)
 
-        let sidx = await task.value
+        let sidx = await withTaskCancellationHandler {
+            await task.value
+        } onCancel: {
+            task.cancel()
+        }
         guard case let .inProgress(currentToken, _) = cache[info],
               currentToken == token
         else {
@@ -1053,13 +1128,16 @@ actor SidxDownloader {
             guard !Task.isCancelled else { return nil }
             let host = URLComponents(string: url)?.host ?? url
             let start = Date()
-            if let res = try? await Self.session.request(url,
-                                                         headers: ["Range": "bytes=\(range)",
-                                                                   "Referer": Keys.referer])
-                .serializingData().result.get(),
-                !Task.isCancelled,
-                let segment = SidxParseUtil.processIndexData(data: res),
-                !segment.segments.isEmpty
+            let request = Self.session.request(url, headers: ["Range": "bytes=\(range)", "Referer": Keys.referer])
+            let data = await withTaskCancellationHandler {
+                try? await request.serializingData().value
+            } onCancel: {
+                request.cancel()
+            }
+            if let res = data,
+               !Task.isCancelled,
+               let segment = SidxParseUtil.processIndexData(data: res),
+               !segment.segments.isEmpty
             {
                 Logger.info("sidx ok in \(elapsedMs(since: start))ms from \(host)")
                 return SidxResult(sidx: segment, url: url, indexBytes: res)

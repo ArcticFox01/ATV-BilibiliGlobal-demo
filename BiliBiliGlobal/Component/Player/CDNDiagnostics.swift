@@ -11,6 +11,12 @@ import Foundation
 /// 用固定大小的 Range 请求实测各 CDN 候选吞吐。
 /// 静态域名分级已不再承担选速职责（仅 PCDN 垫底），起播 sidx 也只验证连通性。
 enum CDNDiagnostics {
+    struct ProbeTarget {
+        let urls: [String]
+        let byteOffset: Int
+        let bandwidth: Int
+    }
+
     struct ProbeResult {
         let url: String
         let bytes: Int
@@ -57,8 +63,8 @@ enum CDNDiagnostics {
 
     /// 逐个实测所有候选，返回原始结果供调用方自行判断（如运行时健康检测比较吞吐）。
     /// 顺序测而非并发：并发会让候选互相抢带宽导致结果失真。
-    static func probeAll(urls: [String]) async -> [ProbeResult] {
-        await probeAll(urls: urls, bytes: fullProbeBytes, session: session)
+    static func probeAll(urls: [String], byteOffset: Int = 0) async -> [ProbeResult] {
+        await probeAll(urls: urls, bytes: fullProbeBytes, byteOffset: byteOffset, session: session)
     }
 
     /// 起播用轻量测速，选出实测最快的 host；候选不足或全部失败时返回 nil。
@@ -66,7 +72,7 @@ enum CDNDiagnostics {
         guard urls.count > 1 else {
             return urls.first.flatMap { URLComponents(string: $0)?.host }
         }
-        let results = await probeAll(urls: urls, bytes: quickProbeBytes, session: quickSession)
+        let results = await probeAll(urls: urls, bytes: quickProbeBytes, byteOffset: 0, session: quickSession)
         let ranked = results.sorted { ($0.mbps ?? -1) > ($1.mbps ?? -1) }
         let summary = ranked.map { r in
             let speed = r.mbps.map { String(format: "%.1fMbps", $0) } ?? "失败"
@@ -77,27 +83,27 @@ enum CDNDiagnostics {
     }
 
     /// 测速并把结果写进日志，返回适合直接显示的文本。
-    static func run(urls: [String], currentHost: String?) async -> String {
+    static func run(urls: [String], currentHost: String?, byteOffset: Int = 0) async -> String {
         guard !urls.isEmpty else { return "无候选 CDN" }
-        let results = await probeAll(urls: urls)
+        let results = await probeAll(urls: urls, byteOffset: byteOffset)
         let text = report(results, currentHost: currentHost, probeBytes: fullProbeBytes)
         Logger.info("\n\(text)")
         return text
     }
 
-    private static func probeAll(urls: [String], bytes: Int, session: Session) async -> [ProbeResult] {
+    private static func probeAll(urls: [String], bytes: Int, byteOffset: Int, session: Session) async -> [ProbeResult] {
         var results = [ProbeResult]()
         for url in urls {
-            results.append(await probe(url: url, bytes: bytes, session: session))
+            results.append(await probe(url: url, bytes: bytes, byteOffset: byteOffset, session: session))
         }
         return results
     }
 
-    private static func probe(url: String, bytes: Int, session: Session) async -> ProbeResult {
+    private static func probe(url: String, bytes: Int, byteOffset: Int, session: Session) async -> ProbeResult {
         let response = await session.request(url, headers: [
-            "Range": "bytes=0-\(bytes - 1)",
+            "Range": "bytes=\(byteOffset)-\(byteOffset + bytes - 1)",
             "Referer": Keys.referer,
-        ]).serializingData().response
+        ]).validate(statusCode: [206]).serializingData().response
 
         var setupTime: TimeInterval = 0
         var transferTime = response.metrics?.taskInterval.duration ?? 0
