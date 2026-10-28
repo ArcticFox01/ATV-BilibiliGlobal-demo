@@ -14,8 +14,8 @@ This project is not affiliated with Bilibili and is not distributed through the 
 
 The app uses Bilibili's existing web endpoints with the Global (`/en`) web context. Availability is determined by Bilibili for the viewer's account and region; the app does not provide regional-content bypassing.
 
- ![](imgs/1.jpg)
- ![](imgs/2.jpg)
+ ![](imgs/1.png)
+ ![](imgs/2.png)
  ![](imgs/3.png)
 
 

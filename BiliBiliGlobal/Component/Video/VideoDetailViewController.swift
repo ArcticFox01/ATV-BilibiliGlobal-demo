@@ -93,6 +93,7 @@ class VideoDetailViewController: UIViewController {
     private var isBangumi = false
     private var startTime = 0
     private var pages = [VideoPage]()
+    private var episodeCovers = [Int: URL]()
     private var replys: Replys?
     private var subTitles: [SubtitleData]?
 
@@ -124,6 +125,7 @@ class VideoDetailViewController: UIViewController {
         super.viewDidLoad()
 
         pageCollectionView.register(BLTextOnlyCollectionViewCell.self, forCellWithReuseIdentifier: String(describing: BLTextOnlyCollectionViewCell.self))
+        pageCollectionView.register(EpisodeThumbnailCell.self, forCellWithReuseIdentifier: String(describing: EpisodeThumbnailCell.self))
         pageCollectionView.collectionViewLayout = makePageCollectionViewLayout()
         pageCollectionView.clipsToBounds = false
         setupPageRangeCollectionView()
@@ -167,6 +169,14 @@ class VideoDetailViewController: UIViewController {
 
     override var preferredFocusedView: UIView? {
         return playButton
+    }
+
+    private func setBangumiEpisodes(_ episodes: [BangumiInfo.Episode]) {
+        pages = episodes.map { VideoPage(cid: $0.cid, page: $0.aid, epid: $0.id, from: "", part: $0.title + " " + $0.long_title) }
+        episodeCovers.removeAll()
+        for episode in episodes {
+            episodeCovers[episode.id] = episode.cover
+        }
     }
 
     private func updatePlayProgressIfNeeded(progress: BangumiInfo.UserStatus.Progress?, episode: BangumiInfo.Episode) {
@@ -332,7 +342,7 @@ class VideoDetailViewController: UIViewController {
                     epid = epi.id
                     updatePlayProgressIfNeeded(progress: info.user_status?.progress, episode: epi)
                 }
-                pages = info.episodes.map({ VideoPage(cid: $0.cid, page: $0.aid, epid: $0.id, from: "", part: $0.title + " " + $0.long_title) })
+                setBangumiEpisodes(info.episodes)
             } else if epid > 0 {
                 isBangumi = true
                 let info = try await WebRequest.requestBangumiInfo(epid: epid)
@@ -346,7 +356,7 @@ class VideoDetailViewController: UIViewController {
                 } else {
                     throw NSError(domain: "get epi fail", code: -1)
                 }
-                pages = info.episodes.map({ VideoPage(cid: $0.cid, page: $0.aid, epid: $0.id, from: "", part: $0.title + " " + $0.long_title) })
+                setBangumiEpisodes(info.episodes)
             }
             let data: VideoDetail
             if let bangumiInfo, usesEnglishSeasonMetadata(bangumiInfo) {
@@ -363,7 +373,7 @@ class VideoDetailViewController: UIViewController {
                     let info = try await WebRequest.requestBangumiInfo(epid: epid)
                     seasonId = info.season_id
                     subType = info.type
-                    pages = info.episodes.map({ VideoPage(cid: $0.cid, page: $0.aid, epid: $0.id, from: "", part: $0.title + " " + $0.long_title) })
+                    setBangumiEpisodes(info.episodes)
                     if let epi = info.episodes.first(where: { $0.id == epid }) {
                         updatePlayProgressIfNeeded(progress: info.user_status?.progress, episode: epi)
                     }
@@ -675,8 +685,13 @@ extension VideoDetailViewController: UICollectionViewDataSource {
             cell.titleLabel.text = pageRanges[indexPath.item].title
             return cell
         case pageCollectionView:
-            let cell = collectionView.dequeueReusableCell(withReuseIdentifier: "BLTextOnlyCollectionViewCell", for: indexPath) as! BLTextOnlyCollectionViewCell
             let page = pages[indexPath.item]
+            if let epid = page.epid, let cover = episodeCovers[epid] {
+                let cell = collectionView.dequeueReusableCell(withReuseIdentifier: "EpisodeThumbnailCell", for: indexPath) as! EpisodeThumbnailCell
+                cell.configure(title: page.part, cover: cover)
+                return cell
+            }
+            let cell = collectionView.dequeueReusableCell(withReuseIdentifier: "BLTextOnlyCollectionViewCell", for: indexPath) as! BLTextOnlyCollectionViewCell
             cell.titleLabel.text = page.part
             return cell
         case replysCollectionView:
@@ -759,6 +774,50 @@ extension VideoDetailViewController {
             section.interGroupSpacing = 40
             return section
         }
+    }
+}
+
+private class EpisodeThumbnailCell: BLMotionCollectionViewCell {
+    private let imageView = UIImageView()
+    private let titleLabel = UILabel()
+    private let gradient = CAGradientLayer()
+
+    override func setup() {
+        super.setup()
+        scaleFactor = 1.15
+        contentView.backgroundColor = .darkGray
+        contentView.layer.cornerRadius = 16
+        contentView.clipsToBounds = true
+        imageView.contentMode = .scaleAspectFill
+        contentView.addSubview(imageView)
+        imageView.snp.makeConstraints { make in
+            make.edges.equalToSuperview()
+        }
+        gradient.colors = [UIColor.clear.cgColor, UIColor.black.withAlphaComponent(0.85).cgColor]
+        contentView.layer.addSublayer(gradient)
+        titleLabel.textColor = .white
+        titleLabel.font = .systemFont(ofSize: 24, weight: .medium)
+        titleLabel.numberOfLines = 2
+        contentView.addSubview(titleLabel)
+        titleLabel.snp.makeConstraints { make in
+            make.leading.trailing.bottom.equalToSuperview().inset(12)
+        }
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        gradient.frame = contentView.bounds
+    }
+
+    func configure(title: String, cover: URL) {
+        titleLabel.text = title
+        imageView.kf.setImage(with: cover, options: [.processor(DownsamplingImageProcessor(size: CGSize(width: 360, height: 202))), .cacheOriginalImage])
+    }
+
+    override func prepareForReuse() {
+        super.prepareForReuse()
+        imageView.kf.cancelDownloadTask()
+        imageView.image = nil
     }
 }
 

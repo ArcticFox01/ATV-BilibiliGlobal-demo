@@ -129,6 +129,7 @@ extension WebRequest.EndPoint {
     static let liveRoom = "https://api.live.bilibili.com/xlive/web-ucenter/v1/xfetter/GetWebList"
     static let hotLive = "https://api.live.bilibili.com/xlive/web-interface/v1/second/getListByArea"
     static let areaLive = "https://api.live.bilibili.com/xlive/web-interface/v1/second/getList"
+    static let areaLiveFallback = "https://api.live.bilibili.com/room/v3/area/getRoomList"
     static let recommandLive = "https://api.live.bilibili.com/xlive/web-interface/v1/webMain/getMoreRecList"
 }
 
@@ -146,9 +147,21 @@ extension WebRequest {
     }
 
     static func requestAreaLiveRoom(area: Int, page: Int) async throws -> [AreaLiveRoom] {
-        let rooms = try await requestPublicLiveRecommendations()
-        let matches = rooms.filter { $0.area_v2_parent_id == area }
-        return (matches.isEmpty ? rooms : matches).map { $0.asAreaLiveRoom() }
+        struct Resp: Codable {
+            let list: [AreaLiveRoom]
+        }
+        let parameters: [String: Any] = ["platform": "web", "parent_area_id": area, "area_id": 0, "page": page]
+        do {
+            let resp: Resp = try await request(url: EndPoint.areaLive, parameters: parameters)
+            return resp.list
+        } catch RequestError.statusFail(code: -352, message: _) {
+            var fallbackParameters = parameters
+            if [2, 3, 6].contains(area) {
+                fallbackParameters["sort_type"] = "online"
+            }
+            let resp: Resp = try await request(url: EndPoint.areaLiveFallback, parameters: fallbackParameters)
+            return resp.list
+        }
     }
 
     static func requestHotLiveRoom(page: Int) async throws -> [AreaLiveRoom] {
