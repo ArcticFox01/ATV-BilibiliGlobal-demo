@@ -91,3 +91,6 @@ iOSInjectionProject/
 # Local Git worktrees
 .worktrees/
 fastlane/README.md
+
+# macOS Finder metadata
+.DS_Store
