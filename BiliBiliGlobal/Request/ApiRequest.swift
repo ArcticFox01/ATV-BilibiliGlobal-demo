@@ -333,10 +333,11 @@ enum ApiRequest {
     }
 
     static func refreshToken() {
+        guard let refreshToken = getToken()?.refreshToken, !refreshToken.isEmpty else { return }
         AF.cancelAllRequests()
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
-        request(EndPoint.refresh, method: .post, parameters: ["refresh_token": getToken()?.refreshToken ?? ""], decoder: decoder) {
+        request(EndPoint.refresh, method: .post, parameters: ["refresh_token": refreshToken], decoder: decoder) {
             (result: Result<LoginResp, RequestError>) in
             switch result {
             case var .success(res):
