@@ -1,5 +1,7 @@
 # Bilibili Global for Apple TV
 
+This project is a fork of [yichengchen/ATV-Bilibili-demo](https://github.com/yichengchen/ATV-Bilibili-demo).
+
 An English-first, unofficial tvOS client for [Bilibili Global](https://www.bilibili.com/en).
 
 This project is not affiliated with Bilibili and is not distributed through the App Store or TestFlight. Do not pay third parties for builds of this app.
@@ -20,12 +22,9 @@ The app uses Bilibili's existing web endpoints with the Global (`/en`) web conte
 
 
 
-### Telegram Group
- - https://t.me/appletvbilibilidemo
-
 ### Builds and installation
 
-Nightly, unsigned IPAs are available from https://github.com/yichengchen/ATV-Bilibili-demo/releases/tag/nightly. An unsigned IPA **cannot be installed on a normal Apple TV** by itself; a GitHub Actions build is an artifact, not a public distribution method.
+Nightly, unsigned IPAs are available from https://github.com/ArcticFox01/ATV-BilibiliGlobal-demo/releases/tag/nightly. An unsigned IPA **cannot be installed on a normal Apple TV** by itself; a GitHub Actions build is an artifact, not a public distribution method.
 
 To run the app on your own Apple TV, open `BiliBiliGlobal.xcodeproj` in Xcode, select the app target, choose your own signing team under **Signing & Capabilities**, then select your connected Apple TV and run the app. Xcode creates a development provisioning profile that is valid only for devices registered to that team.
 
