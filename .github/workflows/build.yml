@@ -47,6 +47,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          mv BilibiliGlobalTV.ipa BilbiliAtvDemo-unsigned.ipa
+          mv BilibiliGlobalTV.ipa BilbiliGlobalAtvDemo-unsigned.ipa
           gh release view "nightly" && gh release delete "nightly" -y --cleanup-tag
-          gh release create "nightly" BilbiliAtvDemo-unsigned.ipa -t "Nightly" -p
+          gh release create "nightly" BilbiliGlobalAtvDemo-unsigned.ipa -t "Nightly" -p
