@@ -38,6 +38,7 @@ class LivePlayerViewModel {
 
     var onPluginReady: (([CommonPlayerPlugin]) -> Void)?
     var onError: ((String) -> Void)?
+    var onQualityChangeError: ((String) -> Void)?
 
     private let playPlugin = URLPlayPlugin(referer: Keys.liveReferer, isLive: true)
     private let debugPlugin = DebugPlugin()
@@ -58,16 +59,22 @@ class LivePlayerViewModel {
                                                   pic: room.pic,
                                                   viewPoints: nil)
         onPluginReady?([fallbackInfoPlugin])
-        Task {
+        Task { [self] in
             do {
                 try await refreshRoomsID()
                 async let detailedInfo = fetchDespInfo()
                 try await initPlayer()
 
                 let danmu = await initDanmu()
-                let linePlugin = LineCandidatesPlugin(candidates: playInfos) { [weak self] url in
-                    self?.playPlugin.play(urlString: url)
+                let linePlugin = LineCandidatesPlugin(candidates: playInfos, qualities: qualities) { [weak self] info in
+                    guard let self else { return }
+                    // Recovery should start with the route the user selected.
+                    self.playInfos = [info] + self.allPlayInfos.filter { $0.url != info.url }
+                    self.playPlugin.play(urlString: info.url)
+                } onQualityChange: { [weak self] quality in
+                    self?.changeQuality(quality)
                 }
+                self.linePlugin = linePlugin
                 self.onPluginReady?(danmu + [linePlugin])
 
                 if let info = await detailedInfo {
@@ -85,7 +92,11 @@ class LivePlayerViewModel {
     }
 
     func playerDidFailToPlay() {
-        Task {
+        Task { @MainActor in
+            if isChangingQuality {
+                pendingRecovery = true
+                return
+            }
             guard !isRecovering else { return }
             isRecovering = true
             defer { isRecovering = false }
@@ -114,7 +125,7 @@ class LivePlayerViewModel {
     }
 
     func debugInfo() -> String {
-        return "\(allPlayInfos.first?.formate ?? "") \(allPlayInfos.first?.current_qn ?? 0) retry:\(retryCount)"
+        return "\(playInfos.first?.formate ?? "") \(playInfos.first?.current_qn ?? 0) retry:\(retryCount)"
     }
 
     func fetchDespInfo() async -> WebRequest.LiveRoomInfo? {
@@ -124,6 +135,11 @@ class LivePlayerViewModel {
     // Private
     private var allPlayInfos = [LivePlayUrlInfo]()
     private var playInfos = [LivePlayUrlInfo]()
+    private var qualities = [LiveQuality]()
+    private var linePlugin: LineCandidatesPlugin?
+    private var requestedQuality = 10000
+    private var isChangingQuality = false
+    private var pendingRecovery = false
     private var roomID: Int
     private let room: LiveRoom
     private var danMuProvider: LiveDanMuProvider?
@@ -138,31 +154,55 @@ class LivePlayerViewModel {
         roomID = info.room_id
     }
 
-    private func initPlayer() async throws {
-        allPlayInfos = []
+    private func changeQuality(_ quality: Int) {
+        Task { @MainActor in
+            guard !isChangingQuality, !isRecovering else { return }
+            isChangingQuality = true
+            defer {
+                isChangingQuality = false
+                if pendingRecovery {
+                    pendingRecovery = false
+                    playerDidFailToPlay()
+                }
+            }
+            do {
+                try await initPlayer(quality: quality)
+                retryCount = 0
+            } catch {
+                // Keep the current stream playing if a quality request fails.
+                onQualityChangeError?(error.localizedDescription)
+            }
+        }
+    }
 
-        let streams = try await WebRequest.requestLiveStreams(roomID: roomID)
+    private func initPlayer(quality: Int? = nil) async throws {
+        let quality = quality ?? requestedQuality
+        let info = try await WebRequest.requestLiveStreams(roomID: roomID, quality: quality)
+        var candidates = [LivePlayUrlInfo]()
+        var acceptedQualities = Set<Int>()
 
-        for stream in streams where stream.protocol_name == "http_hls" {
+        for stream in info.stream where stream.protocol_name == "http_hls" {
             for content in stream.format {
                 guard content.formatName == "fmp4" || content.formatName == "ts" else { continue }
                 let formate = content.formatName
                 let codecs = content.codec
                 for codec in codecs where codec.codecName == "avc" {
                     let qn = codec.currentQn
+                    acceptedQualities.formUnion(codec.acceptQn ?? [])
+                    acceptedQualities.insert(qn)
                     let baseUrl = codec.baseurl
                     for url_info in codec.urlInfo {
                         let host = url_info.host
                         let extra = url_info.extra
                         let url = "\(host)\(baseUrl)\(extra)"
                         let playInfo = LivePlayUrlInfo(formate: formate, url: url, current_qn: qn, codec_name: codec.codecName)
-                        allPlayInfos.append(playInfo)
+                        candidates.append(playInfo)
                     }
                 }
             }
         }
 
-        allPlayInfos.sort { lhs, rhs in
+        candidates.sort { lhs, rhs in
             let lhsFormatRank = lhs.formate == "fmp4" ? 0 : 1
             let rhsFormatRank = rhs.formate == "fmp4" ? 0 : 1
             if lhsFormatRank != rhsFormatRank {
@@ -171,9 +211,22 @@ class LivePlayerViewModel {
             return (lhs.current_qn ?? 0) > (rhs.current_qn ?? 0)
         }
 
-        Logger.debug("all info arry:\(playInfos)")
-        playInfos = allPlayInfos
-        try await playFirstInfo()
+        guard !candidates.isEmpty else { throw LiveError.noPlaybackUrl }
+        let descriptions = info.gQnDesc ?? []
+        let availableQualities = acceptedQualities.sorted(by: >).map { qn in
+            descriptions.first { $0.qn == qn } ?? LiveQuality(qn: qn, desc: "Quality \(qn)", mediaBaseDesc: nil)
+        }
+        let playableCandidates = candidates
+        await MainActor.run {
+            requestedQuality = quality
+            allPlayInfos = playableCandidates
+            playInfos = playableCandidates
+            qualities = availableQualities
+            linePlugin?.update(candidates: playableCandidates, qualities: availableQualities)
+            // Discard failures from the old player before installing its replacement.
+            pendingRecovery = false
+            playPlugin.play(urlString: playableCandidates[0].url)
+        }
     }
 
     func playFirstInfo() async throws {
@@ -238,17 +291,22 @@ extension WebRequest {
         return try await request(url: EndPoint.liveRoomInit, parameters: ["id": roomID])
     }
 
-    static func requestLiveStreams(roomID: Int) async throws -> [LiveStream] {
+    struct LivePlayInfo: Codable {
+        let stream: [LiveStream]
+        let gQnDesc: [LiveQuality]?
+
+        enum CodingKeys: String, CodingKey {
+            case stream
+            case gQnDesc = "g_qn_desc"
+        }
+    }
+
+    static func requestLiveStreams(roomID: Int, quality: Int = 10000) async throws -> LivePlayInfo {
         struct LiveRoomStreamInfo: Codable {
             let playurl_info: PlayUrlInfo
 
             struct PlayUrlInfo: Codable {
-                let playurl: PlayUrl
-            }
-
-            struct PlayUrl: Codable {
-                let cid: Int
-                let stream: [LiveStream]
+                let playurl: LivePlayInfo
             }
         }
         let info: LiveRoomStreamInfo = try await request(url: EndPoint.liveRoomStream,
@@ -256,12 +314,12 @@ extension WebRequest {
                                                                       "protocol": "0,1",
                                                                       "format": "0,1,2",
                                                                       "codec": "0,1",
-                                                                      "qn": "10000",
+                                                                      "qn": quality,
                                                                       "platform": "web",
                                                                       "ptype": "8",
                                                                       "dolby": "5",
                                                                       "panorama": 1])
-        return info.playurl_info.playurl.stream
+        return info.playurl_info.playurl
     }
 }
 
@@ -284,12 +342,14 @@ struct LiveStream: Codable {
             let urlInfo: [URLInfo]
             let codecName: String
             let currentQn: Int
+            let acceptQn: [Int]?
             let baseurl: String
 
             enum CodingKeys: String, CodingKey {
                 case urlInfo = "url_info"
                 case codecName = "codec_name"
                 case currentQn = "current_qn"
+                case acceptQn = "accept_qn"
                 case baseurl = "base_url"
             }
 
@@ -297,6 +357,36 @@ struct LiveStream: Codable {
                 let host: String
                 let extra: String
             }
+        }
+    }
+}
+
+struct LiveQuality: Codable {
+    let qn: Int
+    let desc: String
+    let mediaBaseDesc: MediaBaseDescription?
+
+    // The API's quality ID is a tier, not a pixel height. Prefer its resolution
+    // label when supplied, rather than guessing dimensions from the ID.
+    var displayName: String {
+        let detail = mediaBaseDesc?.detailDesc?.desc ?? ""
+        return detail.isEmpty ? desc : detail
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case qn, desc
+        case mediaBaseDesc = "media_base_desc"
+    }
+
+    struct MediaBaseDescription: Codable {
+        let detailDesc: DetailDescription?
+
+        enum CodingKeys: String, CodingKey {
+            case detailDesc = "detail_desc"
+        }
+
+        struct DetailDescription: Codable {
+            let desc: String
         }
     }
 }
