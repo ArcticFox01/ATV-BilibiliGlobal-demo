@@ -33,6 +33,13 @@ class LivePlayerViewController: CommonPlayerViewController {
             self?.showErrorAlertAndExit(message: $0)
         }
 
+        viewModel?.onQualityChangeError = { [weak self] message in
+            self?.updateMenus()
+            let alert = UIAlertController(title: "Unable to Change Quality", message: message, preferredStyle: .alert)
+            alert.addAction(UIAlertAction(title: "OK", style: .default))
+            self?.present(alert, animated: true)
+        }
+
         viewModel?.start()
     }
 }

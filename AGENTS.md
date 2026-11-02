@@ -14,15 +14,15 @@ fastlane build_unsign_ipa
 
 There is no test suite. Build verification happens through the Xcode project. Use Xcode directly for development and debugging.
 
-For a physical Apple TV deployment, discover the connected device and build a signed app. Substitute its UDID below; the unsigned IPA lane is for distribution, not direct device installation.
+For a physical Apple TV deployment, discover the connected device and build a signed app using the Release configuration. Use Release for physical device installations unless explicitly asked to debug. Substitute its UDID below; the unsigned IPA lane is for distribution, not direct device installation.
 
 ```bash
 xcrun devicectl list devices
-xcodebuild -project BiliBiliGlobal.xcodeproj -scheme BiliBiliGlobal -configuration Debug \
+xcodebuild -project BiliBiliGlobal.xcodeproj -scheme BiliBiliGlobal -configuration Release \
   -destination 'platform=tvOS,id=<DEVICE_UDID>' \
   -derivedDataPath /tmp/ATV-BilibiliGlobal-device -allowProvisioningUpdates build
 xcrun devicectl device install app --device '<DEVICE_UDID>' \
-  /tmp/ATV-BilibiliGlobal-device/Build/Products/Debug-appletvos/BiliBiliGlobal.app
+  /tmp/ATV-BilibiliGlobal-device/Build/Products/Release-appletvos/BiliBiliGlobal.app
 xcrun devicectl device process launch --device '<DEVICE_UDID>' \
   --terminate-existing com.etan.tv.BiliBiliGlobal
 ```
