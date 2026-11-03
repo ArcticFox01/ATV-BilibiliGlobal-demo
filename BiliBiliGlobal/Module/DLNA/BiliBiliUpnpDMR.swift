@@ -29,6 +29,7 @@ class BiliBiliUpnpDMR: NSObject {
     private var connectedSockets = [GCDAsyncSocket]()
     @MainActor private var sessions = Set<NVASession>()
     private var started = false
+    private var hasConfiguredServer = false
     private var ip: String?
     private var boardcastTimer: Timer?
 
@@ -64,13 +65,21 @@ class BiliBiliUpnpDMR: NSObject {
 
     override private init() { super.init() }
     func start() {
-        startIfNeed()
+        guard !hasConfiguredServer else {
+            startIfNeed()
+            return
+        }
+        // Resolve lazy XML on the startup thread before concurrent requests can
+        // access it. Each handler owns an immutable snapshot of its response.
+        let serverInfo = self.serverInfo
+        let nirvanaControl = self.nirvanaControl
+        let avTransportScpd = self.avTransportScpd
         NotificationCenter.default.addObserver(self, selector: #selector(didEnterBackground), name: UIApplication.didEnterBackgroundNotification, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(willEnterForeground), name: UIApplication.willEnterForegroundNotification, object: nil)
 
-        httpServer["/description.xml"] = { [weak self] req in
+        httpServer["/description.xml"] = { req in
             Logger.debug("handel serverInfo")
-            return HttpResponse.ok(.text(self?.serverInfo ?? ""))
+            return HttpResponse.ok(.text(serverInfo))
         }
 
         httpServer["/projection"] = nvasocket(uuid: bUuid, didConnect: { [weak self] session in
@@ -90,17 +99,15 @@ class BiliBiliUpnpDMR: NSObject {
         })
 
         httpServer["/dlna/NirvanaControl.xml"] = {
-            [weak self] req in
+            req in
             Logger.debug("handle NirvanaControl")
-            let txt = self?.nirvanaControl ?? ""
-            return HttpResponse.ok(.text(txt))
+            return HttpResponse.ok(.text(nirvanaControl))
         }
 
         httpServer.get["/dlna/AVTransport.xml"] = {
-            [weak self] req in
+            req in
             Logger.debug("handle AVTransport.xml")
-            let txt = self?.avTransportScpd ?? ""
-            return HttpResponse.ok(.text(txt))
+            return HttpResponse.ok(.text(avTransportScpd))
         }
 
         httpServer.post["/AVTransport/action"] = {
@@ -124,6 +131,8 @@ class BiliBiliUpnpDMR: NSObject {
             }
             return HttpResponse.internalServerError(nil)
         }
+        hasConfiguredServer = true
+        startIfNeed()
     }
 
     func stop() {
