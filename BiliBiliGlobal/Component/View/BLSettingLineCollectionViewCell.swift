@@ -8,8 +8,7 @@
 import UIKit
 
 class BLSettingLineCollectionViewCell: BLMotionCollectionViewCell {
-    let effectView = UIVisualEffectView(effect: UIBlurEffect(style: .light))
-    let selectedWhiteView = UIView()
+    let effectView = BLGlassView(cornerRadius: 22)
     let titleLabel = UILabel()
     override var isSelected: Bool {
         didSet {
@@ -24,33 +23,30 @@ class BLSettingLineCollectionViewCell: BLMotionCollectionViewCell {
         effectView.snp.makeConstraints { make in
             make.edges.equalToSuperview()
         }
-        effectView.layer.cornerRadius = 10
-        effectView.layer.cornerCurve = .continuous
-        effectView.clipsToBounds = true
-        selectedWhiteView.backgroundColor = UIColor.white
-        selectedWhiteView.isHidden = !isFocused
-        effectView.contentView.addSubview(selectedWhiteView)
-        selectedWhiteView.snp.makeConstraints { make in
-            make.edges.equalToSuperview()
-        }
         effectView.contentView.addSubview(titleLabel)
         titleLabel.snp.makeConstraints { make in
             make.leading.equalToSuperview().offset(26)
-            make.trailing.equalToSuperview().offset(20)
+            make.trailing.equalToSuperview().inset(26)
             make.top.bottom.equalToSuperview().inset(8)
         }
         titleLabel.textAlignment = .left
         titleLabel.font = UIFont.systemFont(ofSize: 40, weight: .regular)
-        titleLabel.textColor = .black
+        titleLabel.textColor = .label
     }
 
     override func didUpdateFocus(in context: UIFocusUpdateContext, with coordinator: UIFocusAnimationCoordinator) {
         super.didUpdateFocus(in: context, with: coordinator)
-        updateView()
+        coordinator.addCoordinatedAnimations { self.updateView() }
     }
 
     func updateView() {
-        selectedWhiteView.isHidden = !(isFocused || isSelected)
+        effectView.isActive = isFocused
+        effectView.isSelected = isSelected
+        if isSelected {
+            accessibilityTraits.insert(.selected)
+        } else {
+            accessibilityTraits.remove(.selected)
+        }
     }
 
     static func makeLayout() -> UICollectionViewLayout {

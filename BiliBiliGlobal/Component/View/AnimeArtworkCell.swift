@@ -46,6 +46,8 @@ final class AnimeArtworkCell: BLMotionCollectionViewCell {
     func configure(_ card: AnimeCard, featured: Bool) {
         self.featured = featured
         scaleFactor = featured ? 1.025 : 1.06
+        titleLabel.textColor = featured ? .white : .label
+        subtitleLabel.textColor = featured ? UIColor(white: 0.8, alpha: 1) : .secondaryLabel
         titleLabel.text = card.title
         titleLabel.font = .systemFont(ofSize: featured ? 48 : 27, weight: .bold)
         subtitleLabel.text = featured ? [card.ownerName, "Select to explore episodes  ›"].filter { !$0.isEmpty }.joined(separator: "   ·   ") : card.ownerName
@@ -95,27 +97,28 @@ final class AnimeMenuCell: BLMotionCollectionViewCell {
     private let icon = UIImageView()
     private let titleLabel = UILabel()
     private let subtitleLabel = UILabel()
+    private let surface = BLGlassView()
     private var accent = UIColor.systemPink
     private var selectedDay = false
 
     override func setup() {
         super.setup()
         scaleFactor = 1.06
-        contentView.layer.cornerRadius = 16
-        contentView.layer.borderWidth = 2
+        contentView.addSubview(surface)
+        surface.snp.makeConstraints { $0.edges.equalToSuperview() }
         let stack = UIStackView(arrangedSubviews: [icon, titleLabel, subtitleLabel])
         stack.axis = .horizontal
         stack.spacing = 16
         stack.alignment = .center
-        contentView.addSubview(stack)
+        surface.contentView.addSubview(stack)
         stack.snp.makeConstraints { $0.edges.equalToSuperview().inset(20) }
         icon.contentMode = .scaleAspectFit
         icon.snp.makeConstraints { $0.width.height.equalTo(36) }
         titleLabel.font = .systemFont(ofSize: 25, weight: .semibold)
         titleLabel.numberOfLines = 3
-        titleLabel.textColor = .white
+        titleLabel.textColor = .label
         subtitleLabel.font = .systemFont(ofSize: 20)
-        subtitleLabel.textColor = UIColor(white: 0.75, alpha: 1)
+        subtitleLabel.textColor = .secondaryLabel
     }
 
     func configure(title: String, subtitle: String?, symbol: String?, color: UIColor, selected: Bool = false) {
@@ -143,7 +146,9 @@ final class AnimeMenuCell: BLMotionCollectionViewCell {
     }
 
     private func updateAppearance() {
-        contentView.backgroundColor = selectedDay ? accent.withAlphaComponent(0.28) : UIColor(white: isFocused ? 0.23 : 0.12, alpha: 1)
-        contentView.layer.borderColor = (isFocused || selectedDay ? accent : UIColor.clear).cgColor
+        surface.isActive = isFocused
+        surface.isSelected = selectedDay
+        icon.tintColor = accent
+        accessibilityTraits = selectedDay ? [.button, .selected] : [.button]
     }
 }

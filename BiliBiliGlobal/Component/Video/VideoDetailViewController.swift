@@ -951,14 +951,17 @@ class RelatedVideoCell: BLMotionCollectionViewCell {
     let imageView = UIImageView()
     override func setup() {
         super.setup()
+        usesSystemImageFocus = true
+        imageView.adjustsImageWhenAncestorFocused = true
         contentView.addSubview(imageView)
         contentView.addSubview(titleLabel)
         imageView.snp.makeConstraints { make in
             make.top.left.right.equalToSuperview()
             make.width.equalTo(imageView.snp.height).multipliedBy(14.0 / 9)
         }
-        imageView.layer.cornerRadius = 12
-        imageView.clipsToBounds = true
+        imageView.layer.cornerRadius = 18
+        imageView.layer.cornerCurve = .continuous
+        imageView.clipsToBounds = false
         imageView.contentMode = .scaleAspectFill
         titleLabel.snp.makeConstraints { make in
             make.left.right.bottom.equalToSuperview()
@@ -985,6 +988,7 @@ class RelatedVideoCell: BLMotionCollectionViewCell {
     }
 
     private func startScroll() {
+        guard !UIAccessibility.isReduceMotionEnabled else { return }
         titleLabel.restartLabel()
         titleLabel.holdScrolling = false
     }
@@ -1029,8 +1033,14 @@ class DetailLabel: UILabel {
 
 class NoteDetailView: UIControl {
     let label = UILabel()
+    override var canBecomeFocused: Bool { isEnabled }
+    override var accessibilityLabel: String? {
+        get { label.text }
+        set { super.accessibilityLabel = newValue }
+    }
+
     var onPrimaryAction: ((NoteDetailView) -> Void)?
-    private let backgroundView = UIView()
+    private let backgroundView = BLGlassView()
     init() {
         super.init(frame: .zero)
         setup()
@@ -1042,13 +1052,9 @@ class NoteDetailView: UIControl {
     }
 
     func setup() {
+        isAccessibilityElement = true
+        accessibilityTraits = .button
         addSubview(backgroundView)
-        backgroundView.backgroundColor = UIColor(named: "bgColor")
-        backgroundView.layer.shadowOffset = CGSizeMake(0, 10)
-        backgroundView.layer.shadowOpacity = 0.15
-        backgroundView.layer.shadowRadius = 16.0
-        backgroundView.layer.cornerRadius = 20
-        backgroundView.layer.cornerCurve = .continuous
         backgroundView.isHidden = !isFocused
         backgroundView.snp.makeConstraints { make in
             make.top.bottom.equalToSuperview()
@@ -1069,7 +1075,10 @@ class NoteDetailView: UIControl {
 
     override func didUpdateFocus(in context: UIFocusUpdateContext, with coordinator: UIFocusAnimationCoordinator) {
         super.didUpdateFocus(in: context, with: coordinator)
-        backgroundView.isHidden = !isFocused
+        coordinator.addCoordinatedAnimations {
+            self.backgroundView.isActive = self.isFocused
+            self.backgroundView.isHidden = !self.isFocused
+        }
     }
 
     override func pressesEnded(_ presses: Set<UIPress>, with event: UIPressesEvent?) {

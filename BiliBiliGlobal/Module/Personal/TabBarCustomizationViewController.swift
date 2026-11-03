@@ -89,7 +89,7 @@ class TabBarCustomizationViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         title = "选中项目后按播放键开始排序"
-        view.backgroundColor = .black
+        view.backgroundColor = BLAppearance.background
 
         setupUI()
         reloadPlacementsFromSettings()
@@ -369,6 +369,7 @@ extension TabBarCustomizationViewController: UICollectionViewDelegate {
 class TabBarTileCell: BLMotionCollectionViewCell {
     static let reuseID = String(describing: TabBarTileCell.self)
     private var isBeingEdited = false
+    private let surface = BLGlassView()
 
     private let titleLabel: UILabel = {
         let l = UILabel()
@@ -406,8 +407,12 @@ class TabBarTileCell: BLMotionCollectionViewCell {
 
     // MARK: - Private
 
+    @objc private func updateEditingMotion() {
+        setShaking(isBeingEdited)
+    }
+
     private func setShaking(_ shaking: Bool) {
-        if shaking {
+        if shaking, !UIAccessibility.isReduceMotionEnabled {
             guard contentView.layer.animation(forKey: "shake") == nil else { return }
             let anim = CAKeyframeAnimation(keyPath: "transform.rotation.z")
             anim.values = [-0.015, 0.015, -0.015]
@@ -420,16 +425,17 @@ class TabBarTileCell: BLMotionCollectionViewCell {
     }
 
     private func setupView() {
-        contentView.layer.cornerRadius = 16
-        contentView.layer.cornerCurve = .continuous
-        contentView.clipsToBounds = true
+        NotificationCenter.default.addObserver(self, selector: #selector(updateEditingMotion), name: UIAccessibility.reduceMotionStatusDidChangeNotification, object: nil)
+        scaleFactor = 1.06
+        contentView.addSubview(surface)
+        surface.snp.makeConstraints { $0.edges.equalToSuperview() }
 
         layer.shadowColor = UIColor.black.cgColor
         layer.shadowOffset = CGSize(width: 0, height: 8)
         layer.shadowRadius = 12
         layer.shadowOpacity = 0
 
-        contentView.addSubview(titleLabel)
+        surface.contentView.addSubview(titleLabel)
 
         titleLabel.snp.makeConstraints { make in
             make.center.equalToSuperview()
@@ -447,15 +453,8 @@ class TabBarTileCell: BLMotionCollectionViewCell {
     }
 
     private func updateAppearance() {
-        if isFocused {
-            contentView.backgroundColor = .white
-            titleLabel.textColor = .black
-            layer.shadowOpacity = 0.3
-        } else {
-            contentView.backgroundColor = UIColor(white: 0.15, alpha: 1)
-            titleLabel.textColor = .white
-            layer.shadowOpacity = 0
-        }
+        surface.isActive = isFocused
+        titleLabel.textColor = .label
     }
 }
 
@@ -467,7 +466,7 @@ class TabBarSectionHeaderView: UICollectionReusableView {
     let label: UILabel = {
         let l = UILabel()
         l.font = .systemFont(ofSize: 30, weight: .bold)
-        l.textColor = .white
+        l.textColor = .label
         return l
     }()
 

@@ -12,7 +12,7 @@ final class FeedFlowListCell: BLMotionCollectionViewCell {
 
     var onLongPress: (() -> Void)?
 
-    private let blurBackgroundView = UIVisualEffectView(effect: UIBlurEffect(style: .dark))
+    private let blurBackgroundView = BLGlassView()
     private let imageView = UIImageView()
     private let titleLabel = UILabel()
     private let metaLabel = UILabel()
@@ -118,8 +118,9 @@ final class FeedFlowListCell: BLMotionCollectionViewCell {
     }
 
     private func updateAppearance() {
-        blurBackgroundView.effect = UIBlurEffect(style: isFocused || isCurrent ? .light : .dark)
-        titleLabel.textColor = isFocused || isCurrent ? .black : .white
-        metaLabel.textColor = isFocused || isCurrent ? UIColor.black.withAlphaComponent(0.75) : UIColor.white.withAlphaComponent(0.78)
+        blurBackgroundView.isActive = isFocused
+        blurBackgroundView.isSelected = isCurrent
+        titleLabel.textColor = .label
+        metaLabel.textColor = .secondaryLabel
     }
 }

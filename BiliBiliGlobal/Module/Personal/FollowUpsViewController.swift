@@ -114,12 +114,16 @@ extension FollowUpsViewController: UICollectionViewDelegate {
 }
 
 class UpCell: BLMotionCollectionViewCell {
+    private let surface = BLGlassView()
     let imageView = UIImageView()
     let nameLabel = MarqueeLabel()
     let despLabel = UILabel()
 
     override func setup() {
         super.setup()
+        scaleFactor = 1.04
+        contentView.addSubview(surface)
+        surface.snp.makeConstraints { $0.edges.equalToSuperview() }
         contentView.addSubview(imageView)
         contentView.addSubview(nameLabel)
         contentView.addSubview(despLabel)
@@ -148,12 +152,13 @@ class UpCell: BLMotionCollectionViewCell {
         nameLabel.fadeLength = 60
         despLabel.font = UIFont.systemFont(ofSize: 20, weight: .regular)
         despLabel.textColor = UIColor(named: "titleColor")
-        contentView.backgroundColor = UIColor(named: "bgColor")
-        contentView.layer.cornerRadius = 16
+        nameLabel.textColor = .label
+        despLabel.textColor = .secondaryLabel
     }
 
     override func didUpdateFocus(in context: UIFocusUpdateContext, with coordinator: UIFocusAnimationCoordinator) {
         super.didUpdateFocus(in: context, with: coordinator)
+        coordinator.addCoordinatedAnimations { self.surface.isActive = self.isFocused }
         if isFocused {
             startScroll()
         } else {
@@ -162,6 +167,7 @@ class UpCell: BLMotionCollectionViewCell {
     }
 
     private func startScroll() {
+        guard !UIAccessibility.isReduceMotionEnabled else { return }
         nameLabel.restartLabel()
         nameLabel.holdScrolling = false
     }
