@@ -72,6 +72,7 @@ class SettingsViewController: UIViewController {
             header.pinToVisibleBounds = false
             section.boundarySupplementaryItems = [header]
             section.interGroupSpacing = 10
+            section.contentInsets = NSDirectionalEdgeInsets(top: 0, leading: 12, bottom: 0, trailing: 12)
             return section
         }
         return UICollectionView(frame: .zero, collectionViewLayout: layout)
@@ -361,6 +362,7 @@ extension SettingsViewController: UICollectionViewDelegate {
 }
 
 class SettingsSwitchCell: BLMotionCollectionViewCell {
+    private let surface = BLGlassView()
     private let titleLabel = UILabel()
     private let descLabel = UILabel()
 
@@ -383,13 +385,16 @@ class SettingsSwitchCell: BLMotionCollectionViewCell {
     }
 
     override func didUpdateFocus(in context: UIFocusUpdateContext, with coordinator: UIFocusAnimationCoordinator) {
-        updateColor()
+        super.didUpdateFocus(in: context, with: coordinator)
+        coordinator.addCoordinatedAnimations { self.updateColor() }
     }
 
     func setupView() {
-        contentView.addSubview(titleLabel)
-        contentView.addSubview(descLabel)
-        contentView.layer.cornerRadius = 10
+        scaleFactor = 1
+        contentView.addSubview(surface)
+        surface.snp.makeConstraints { $0.edges.equalToSuperview() }
+        surface.contentView.addSubview(titleLabel)
+        surface.contentView.addSubview(descLabel)
 
         titleLabel.snp.makeConstraints { make in
             make.leading.equalToSuperview().offset(20)
@@ -408,21 +413,9 @@ class SettingsSwitchCell: BLMotionCollectionViewCell {
     }
 
     func updateColor() {
-        if traitCollection.userInterfaceStyle == .dark {
-            if isFocused {
-                contentView.backgroundColor = UIColor.white
-                titleLabel.textColor = UIColor.black
-                descLabel.textColor = UIColor.black
-            } else {
-                contentView.backgroundColor = UIColor.clear
-                titleLabel.textColor = UIColor.white
-                descLabel.textColor = UIColor.secondaryLabel
-            }
-        } else {
-            contentView.backgroundColor = isFocused ? UIColor.white : UIColor.clear
-            titleLabel.textColor = .black
-            descLabel.textColor = UIColor.secondaryLabel
-        }
+        surface.isActive = isFocused
+        titleLabel.textColor = .label
+        descLabel.textColor = .secondaryLabel
     }
 }
 

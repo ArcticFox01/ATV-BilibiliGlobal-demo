@@ -25,11 +25,12 @@ class BLCustomButton: BLButton {
 
     @IBInspectable var title: String? {
         didSet {
+            accessibilityLabel = title
             updateTitleLabel()
         }
     }
 
-    @IBInspectable var titleColor: UIColor = UIColor.black.withAlphaComponent(0.9) {
+    @IBInspectable var titleColor: UIColor = .label {
         didSet { titleLabel.textColor = titleColor }
     }
 
@@ -86,10 +87,10 @@ class BLCustomButton: BLButton {
     private func updateButton() {
         if isFocused {
             imageView.image = highLightImage ?? getImage()
-            imageView.tintColor = .black
+            imageView.tintColor = .label
         } else {
             imageView.image = getImage()
-            imageView.tintColor = .white
+            imageView.tintColor = .label
         }
     }
 
@@ -106,15 +107,18 @@ class BLCustomTextButton: BLButton {
     var object: Any?
 
     @IBInspectable var title: String? {
-        didSet { titleLabel.text = title }
+        didSet {
+            titleLabel.text = title
+            accessibilityLabel = title
+        }
     }
 
-    @IBInspectable var titleColor: UIColor = .white {
+    @IBInspectable var titleColor: UIColor = .label {
         didSet { titleLabel.textColor = titleColor }
     }
 
-    @IBInspectable var titleSelectedColor: UIColor = .black {
-        didSet { titleLabel.textColor = titleColor }
+    @IBInspectable var titleSelectedColor: UIColor = .label {
+        didSet { titleLabel.textColor = isFocused ? titleSelectedColor : titleColor }
     }
 
     @IBInspectable var titleFont: UIFont = .systemFont(ofSize: 28) {
@@ -123,7 +127,7 @@ class BLCustomTextButton: BLButton {
 
     override func setup() {
         super.setup()
-        effectView.layer.cornerRadius = 10
+        effectView.layer.cornerRadius = 24
         effectView.contentView.addSubview(titleLabel)
         titleLabel.snp.makeConstraints { make in
             make.top.bottom.equalToSuperview().inset(10)
@@ -143,8 +147,7 @@ class BLCustomTextButton: BLButton {
 
 class BLButton: UIControl {
     private var motionEffect: UIInterpolatingMotionEffect!
-    fileprivate let effectView = UIVisualEffectView(effect: UIBlurEffect(style: .dark))
-    private let selectedWhiteView = UIView()
+    fileprivate let effectView = BLGlassView(cornerRadius: 24)
 
     var onPrimaryAction: ((BLButton) -> Void)?
 
@@ -158,32 +161,43 @@ class BLButton: UIControl {
         setup()
     }
 
-    override var canBecomeFocused: Bool { return true }
+    override var canBecomeFocused: Bool { return isEnabled }
 
     func setup() {
         isUserInteractionEnabled = true
         motionEffect = UIInterpolatingMotionEffect(keyPath: "center.x", type: .tiltAlongHorizontalAxis)
         motionEffect.maximumRelativeValue = 8
         motionEffect.minimumRelativeValue = -8
-        selectedWhiteView.isHidden = !isFocused
+        isAccessibilityElement = true
+        accessibilityTraits.insert(.button)
+        NotificationCenter.default.addObserver(self, selector: #selector(updateMotion), name: UIAccessibility.reduceMotionStatusDidChangeNotification, object: nil)
         addSubview(effectView)
         effectView.isUserInteractionEnabled = false
-        effectView.layer.cornerRadius = 8
         effectView.clipsToBounds = true
         effectView.snp.makeConstraints { make in
             make.top.leading.trailing.equalToSuperview()
             make.bottom.equalToSuperview().priority(.high)
         }
-        effectView.contentView.addSubview(selectedWhiteView)
-        selectedWhiteView.backgroundColor = UIColor.white
-        selectedWhiteView.snp.makeConstraints { make in
-            make.edges.equalToSuperview()
-        }
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+
+    @objc private func updateMotion() {
+        removeMotionEffect(motionEffect)
+        transform = .identity
+        layer.shadowOpacity = isFocused ? 0.2 : 0
+        guard isFocused, !UIAccessibility.isReduceMotionEnabled else { return }
+        transform = CGAffineTransform(scaleX: 1.06, y: 1.06)
+        layer.shadowOffset = CGSize(width: 0, height: 10)
+        layer.shadowRadius = 16
+        addMotionEffect(motionEffect)
     }
 
     override func pressesEnded(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
         super.pressesEnded(presses, with: event)
-        if presses.first?.type == .select {
+        if isEnabled, presses.first?.type == .select {
             sendActions(for: .primaryActionTriggered)
             onPrimaryAction?(self)
         }
@@ -191,25 +205,9 @@ class BLButton: UIControl {
 
     override func didUpdateFocus(in context: UIFocusUpdateContext, with coordinator: UIFocusAnimationCoordinator) {
         super.didUpdateFocus(in: context, with: coordinator)
-        if isFocused {
-            selectedWhiteView.isHidden = false
-            coordinator.addCoordinatedAnimations {
-                self.transform = CGAffineTransformMakeScale(1.1, 1.1)
-                let scaleDiff = (self.bounds.size.height * 1.1 - self.bounds.size.height) / 2
-                self.transform = CGAffineTransformTranslate(self.transform, 0, -scaleDiff)
-                self.layer.shadowOffset = CGSizeMake(0, 10)
-                self.layer.shadowOpacity = 0.15
-                self.layer.shadowRadius = 16.0
-                self.addMotionEffect(self.motionEffect)
-            }
-        } else {
-            selectedWhiteView.isHidden = true
-            coordinator.addCoordinatedAnimations {
-                self.transform = CGAffineTransformIdentity
-                self.layer.shadowOpacity = 0
-                self.layer.shadowOffset = CGSizeMake(0, 0)
-                self.removeMotionEffect(self.motionEffect)
-            }
+        coordinator.addCoordinatedAnimations {
+            self.effectView.isActive = self.isFocused
+            self.updateMotion()
         }
     }
 }

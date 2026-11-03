@@ -70,7 +70,7 @@ final class AnimeViewController: UIViewController, BLTabBarContentVCProtocol, UI
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        view.backgroundColor = UIColor(red: 0.035, green: 0.045, blue: 0.075, alpha: 1)
+        view.backgroundColor = BLAppearance.background
         collectionView = UICollectionView(frame: .zero, collectionViewLayout: makeLayout())
         collectionView.backgroundColor = .clear
         collectionView.delegate = self
@@ -274,7 +274,7 @@ final class AnimeViewController: UIViewController, BLTabBarContentVCProtocol, UI
         }
         let header = UICollectionView.SupplementaryRegistration<TitleSupplementaryView>(elementKind: UICollectionView.elementKindSectionHeader) { [weak self] view, _, index in
             view.label.text = self?.dataSource.snapshot().sectionIdentifiers[index.section].title
-            view.label.textColor = .white
+            view.label.textColor = .label
         }
         dataSource.supplementaryViewProvider = { collection, _, index in
             collection.dequeueConfiguredReusableSupplementary(using: header, for: index)
@@ -337,11 +337,11 @@ private final class AnimeCategoriesViewController: UIViewController, UICollectio
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        view.backgroundColor = UIColor(red: 0.035, green: 0.045, blue: 0.075, alpha: 1)
+        view.backgroundColor = BLAppearance.background
         let title = UILabel()
         title.text = "Anime categories"
         title.font = .systemFont(ofSize: 42, weight: .semibold)
-        title.textColor = .white
+        title.textColor = .label
         view.addSubview(title)
         title.snp.makeConstraints { make in
             make.top.leading.equalTo(view.safeAreaLayoutGuide).offset(30)

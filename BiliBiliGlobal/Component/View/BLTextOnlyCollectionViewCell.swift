@@ -9,13 +9,12 @@ import Foundation
 import UIKit
 
 class BLTextOnlyCollectionViewCell: BLMotionCollectionViewCell {
-    private let effectView = UIVisualEffectView(effect: UIBlurEffect(style: .dark))
-    private let selectedWhiteView = UIView()
+    private let effectView = BLGlassView()
     let titleLabel = UILabel()
 
     override func setup() {
         super.setup()
-        scaleFactor = 1.15
+        scaleFactor = 1.06
         contentView.addSubview(effectView)
         effectView.snp.makeConstraints { make in
             make.edges.equalToSuperview()
@@ -26,16 +25,15 @@ class BLTextOnlyCollectionViewCell: BLMotionCollectionViewCell {
             make.leading.trailing.equalToSuperview().inset(20)
             make.top.bottom.lessThanOrEqualToSuperview().inset(8)
         }
-        titleLabel.textColor = .white
+        titleLabel.textColor = .label
         titleLabel.textAlignment = .center
         titleLabel.numberOfLines = 2
         titleLabel.font = UIFont.systemFont(ofSize: 26, weight: .medium)
-        effectView.layer.cornerRadius = 16
         effectView.clipsToBounds = true
     }
 
     override func didUpdateFocus(in context: UIFocusUpdateContext, with coordinator: UIFocusAnimationCoordinator) {
         super.didUpdateFocus(in: context, with: coordinator)
-        selectedWhiteView.isHidden = !isFocused
+        coordinator.addCoordinatedAnimations { self.effectView.isActive = self.isFocused }
     }
 }

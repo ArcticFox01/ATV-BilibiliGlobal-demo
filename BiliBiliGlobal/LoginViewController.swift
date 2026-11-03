@@ -23,7 +23,12 @@ class LoginViewController: UIViewController {
     }()
 
     private let regenerateButton: UIButton = {
-        var config = UIButton.Configuration.plain()
+        var config: UIButton.Configuration
+        if #available(tvOS 26.0, *) {
+            config = .glass()
+        } else {
+            config = .plain()
+        }
         config.title = "Generate New QR Code"
         config.contentInsets = NSDirectionalEdgeInsets(top: 20, leading: 40, bottom: 20, trailing: 40)
 
@@ -219,7 +224,7 @@ class LoginViewController: UIViewController {
     }
 
     private func setupUI() {
-        view.backgroundColor = .black
+        view.backgroundColor = BLAppearance.background
 
         view.addSubview(leftContainerView)
         view.addSubview(dividerView)

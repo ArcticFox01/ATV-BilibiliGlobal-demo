@@ -7,7 +7,7 @@ final class AccountSwitcherViewController: UIViewController {
         case actions
     }
 
-    private let containerView = UIVisualEffectView(effect: UIBlurEffect(style: .dark))
+    private let containerView = BLGlassView(cornerRadius: 36)
     private let titleLabel = UILabel()
     private let subtitleLabel = UILabel()
     private let closeButton = UIButton(type: .system)
@@ -52,6 +52,7 @@ final class AccountSwitcherViewController: UIViewController {
     }
 
     private func setupContainer() {
+        containerView.isUserInteractionEnabled = true
         containerView.clipsToBounds = true
         containerView.layer.cornerRadius = 36
         containerView.translatesAutoresizingMaskIntoConstraints = false
@@ -68,16 +69,16 @@ final class AccountSwitcherViewController: UIViewController {
         let contentView = containerView.contentView
         titleLabel.text = "Accounts"
         titleLabel.font = UIFont.systemFont(ofSize: 48, weight: .semibold)
-        titleLabel.textColor = .white
+        titleLabel.textColor = .label
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
 
         subtitleLabel.text = "Quickly switch accounts or add a new one."
         subtitleLabel.font = UIFont.systemFont(ofSize: 26, weight: .regular)
-        subtitleLabel.textColor = UIColor.white.withAlphaComponent(0.8)
+        subtitleLabel.textColor = .secondaryLabel
         subtitleLabel.translatesAutoresizingMaskIntoConstraints = false
 
         closeButton.setTitle("Close", for: .normal)
-        closeButton.setTitleColor(.white, for: .normal)
+        closeButton.setTitleColor(.label, for: .normal)
         closeButton.titleLabel?.font = UIFont.systemFont(ofSize: 30, weight: .medium)
         closeButton.translatesAutoresizingMaskIntoConstraints = false
         closeButton.addTarget(self, action: #selector(closeTapped), for: .primaryActionTriggered)
@@ -186,13 +187,13 @@ extension AccountSwitcherViewController: UICollectionViewDelegate {
     }
 }
 
-private final class AccountSwitcherCell: UICollectionViewCell {
+private final class AccountSwitcherCell: BLMotionCollectionViewCell {
     static let reuseIdentifier = "AccountSwitcherCell"
 
     private let avatarView = UIImageView()
     private let nameLabel = UILabel()
     private let badgeLabel = UILabel()
-    private let background = UIView()
+    private let background = BLGlassView(cornerRadius: 28)
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -210,16 +211,14 @@ private final class AccountSwitcherCell: UICollectionViewCell {
         badgeLabel.isHidden = true
         avatarView.backgroundColor = .clear
         avatarView.tintColor = nil
-        background.layer.borderWidth = 0
-        background.transform = .identity
+        background.isActive = false
+        background.isSelected = false
     }
 
     private func configure() {
         contentView.clipsToBounds = false
         background.translatesAutoresizingMaskIntoConstraints = false
-        background.backgroundColor = UIColor.white.withAlphaComponent(0.08)
-        background.layer.cornerRadius = 28
-        background.layer.borderWidth = 0
+        scaleFactor = 1.06
         contentView.addSubview(background)
 
         avatarView.translatesAutoresizingMaskIntoConstraints = false
@@ -229,7 +228,7 @@ private final class AccountSwitcherCell: UICollectionViewCell {
 
         nameLabel.translatesAutoresizingMaskIntoConstraints = false
         nameLabel.font = UIFont.systemFont(ofSize: 30, weight: .medium)
-        nameLabel.textColor = .white
+        nameLabel.textColor = .label
         nameLabel.textAlignment = .center
         nameLabel.numberOfLines = 2
 
@@ -243,9 +242,9 @@ private final class AccountSwitcherCell: UICollectionViewCell {
         badgeLabel.textAlignment = .center
         badgeLabel.isHidden = true
 
-        background.addSubview(avatarView)
-        background.addSubview(nameLabel)
-        background.addSubview(badgeLabel)
+        background.contentView.addSubview(avatarView)
+        background.contentView.addSubview(nameLabel)
+        background.contentView.addSubview(badgeLabel)
 
         NSLayoutConstraint.activate([
             background.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
@@ -271,16 +270,16 @@ private final class AccountSwitcherCell: UICollectionViewCell {
 
     override func didUpdateFocus(in context: UIFocusUpdateContext, with coordinator: UIFocusAnimationCoordinator) {
         super.didUpdateFocus(in: context, with: coordinator)
-        let isFocused = (context.nextFocusedView == self)
         coordinator.addCoordinatedAnimations {
-            self.background.layer.borderWidth = isFocused ? 4 : 0
-            self.background.layer.borderColor = isFocused ? UIColor.systemBlue.cgColor : UIColor.clear.cgColor
-            self.background.transform = isFocused ? CGAffineTransform(scaleX: 1.06, y: 1.06) : .identity
+            self.background.isActive = self.isFocused
         }
     }
 
     func configure(with account: AccountManager.Account, active: Bool) {
         nameLabel.text = account.profile.username
+        background.isSelected = active
+        accessibilityLabel = account.profile.username
+        accessibilityTraits = active ? [.button, .selected] : [.button]
         if let url = URL(string: account.profile.avatar), !account.profile.avatar.isEmpty {
             avatarView.kf.setImage(with: url)
         } else {
@@ -292,12 +291,12 @@ private final class AccountSwitcherCell: UICollectionViewCell {
     }
 }
 
-private final class AccountSwitcherAddCell: UICollectionViewCell {
+private final class AccountSwitcherAddCell: BLMotionCollectionViewCell {
     static let reuseIdentifier = "AccountSwitcherAddCell"
 
     private let iconView = UIImageView()
     private let titleLabel = UILabel()
-    private let background = UIView()
+    private let background = BLGlassView(cornerRadius: 28)
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -311,15 +310,14 @@ private final class AccountSwitcherAddCell: UICollectionViewCell {
 
     override func prepareForReuse() {
         super.prepareForReuse()
-        background.layer.borderWidth = 0
-        background.transform = .identity
+        background.isActive = false
+        background.isSelected = false
     }
 
     private func configure() {
         contentView.clipsToBounds = false
         background.translatesAutoresizingMaskIntoConstraints = false
-        background.backgroundColor = UIColor.white.withAlphaComponent(0.08)
-        background.layer.cornerRadius = 28
+        scaleFactor = 1.06
         contentView.addSubview(background)
 
         iconView.translatesAutoresizingMaskIntoConstraints = false
@@ -329,12 +327,15 @@ private final class AccountSwitcherAddCell: UICollectionViewCell {
 
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
         titleLabel.text = "Add Account"
+        isAccessibilityElement = true
+        accessibilityLabel = titleLabel.text
+        accessibilityTraits = .button
         titleLabel.font = UIFont.systemFont(ofSize: 30, weight: .medium)
-        titleLabel.textColor = .white
+        titleLabel.textColor = .label
         titleLabel.textAlignment = .center
 
-        background.addSubview(iconView)
-        background.addSubview(titleLabel)
+        background.contentView.addSubview(iconView)
+        background.contentView.addSubview(titleLabel)
 
         NSLayoutConstraint.activate([
             background.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
@@ -355,11 +356,8 @@ private final class AccountSwitcherAddCell: UICollectionViewCell {
 
     override func didUpdateFocus(in context: UIFocusUpdateContext, with coordinator: UIFocusAnimationCoordinator) {
         super.didUpdateFocus(in: context, with: coordinator)
-        let isFocused = (context.nextFocusedView == self)
         coordinator.addCoordinatedAnimations {
-            self.background.layer.borderWidth = isFocused ? 4 : 0
-            self.background.layer.borderColor = isFocused ? UIColor.systemBlue.cgColor : UIColor.clear.cgColor
-            self.background.transform = isFocused ? CGAffineTransform(scaleX: 1.06, y: 1.06) : .identity
+            self.background.isActive = self.isFocused
         }
     }
 }

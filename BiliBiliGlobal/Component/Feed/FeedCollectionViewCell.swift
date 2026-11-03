@@ -23,6 +23,8 @@ class FeedCollectionViewCell: BLMotionCollectionViewCell {
 
     override func setup() {
         super.setup()
+        usesSystemImageFocus = true
+        imageView.adjustsImageWhenAncestorFocused = true
         let longpress = UILongPressGestureRecognizer(target: self, action: #selector(actionLongPress(sender:)))
         addGestureRecognizer(longpress)
 
@@ -33,16 +35,14 @@ class FeedCollectionViewCell: BLMotionCollectionViewCell {
             make.top.equalToSuperview()
             make.height.equalTo(imageView.snp.width).multipliedBy(9.0 / 16)
         }
-        imageView.layer.cornerRadius = 12
-        imageView.clipsToBounds = true
+        imageView.layer.cornerRadius = 18
+        imageView.layer.cornerCurve = .continuous
+        imageView.clipsToBounds = false
         imageView.contentMode = .scaleAspectFill
 
-        contentView.addSubview(overlayView)
+        imageView.overlayContentView.addSubview(overlayView)
         overlayView.snp.makeConstraints { make in
-            make.leading.equalTo(imageView.snp.leading)
-            make.trailing.equalTo(imageView.snp.trailing)
-            make.bottom.equalTo(imageView.snp.bottom)
-            make.top.equalTo(imageView.snp.top)
+            make.edges.equalToSuperview()
         }
         overlayView.layer.cornerRadius = imageView.layer.cornerRadius
         overlayView.clipsToBounds = true
@@ -89,7 +89,7 @@ class FeedCollectionViewCell: BLMotionCollectionViewCell {
         titleLabel.fadeLength = 60
         upLabel.setContentHuggingPriority(.required, for: .vertical)
         upLabel.setContentCompressionResistancePriority(.required, for: .vertical)
-        upLabel.textColor = UIColor(named: "titleColor")
+        upLabel.textColor = .secondaryLabel
         upLabel.adjustsFontSizeToFitWidth = true
         upLabel.minimumScaleFactor = 0.1
     }
@@ -128,6 +128,7 @@ class FeedCollectionViewCell: BLMotionCollectionViewCell {
     }
 
     private func startScroll() {
+        guard !UIAccessibility.isReduceMotionEnabled else { return }
         titleLabel.restartLabel()
         titleLabel.holdScrolling = false
     }
