@@ -12,6 +12,7 @@ class BLMotionCollectionViewCell: UICollectionViewCell {
     private var motionEffectV: UIInterpolatingMotionEffect!
     private var motionEffectH: UIInterpolatingMotionEffect!
     var scaleFactor: CGFloat = 1.1
+    var usesSystemImageFocus = false
     override init(frame: CGRect) {
         super.init(frame: frame)
         setup()
@@ -23,6 +24,7 @@ class BLMotionCollectionViewCell: UICollectionViewCell {
     }
 
     func setup() {
+        NotificationCenter.default.addObserver(self, selector: #selector(updateMotion), name: UIAccessibility.reduceMotionStatusDidChangeNotification, object: nil)
         motionEffectV = UIInterpolatingMotionEffect(keyPath: "center.y", type: .tiltAlongVerticalAxis)
         motionEffectV.maximumRelativeValue = 8
         motionEffectV.minimumRelativeValue = -8
@@ -33,23 +35,35 @@ class BLMotionCollectionViewCell: UICollectionViewCell {
 
     override func didUpdateFocus(in context: UIFocusUpdateContext, with coordinator: UIFocusAnimationCoordinator) {
         super.didUpdateFocus(in: context, with: coordinator)
-        if isFocused {
-            coordinator.addCoordinatedAnimations {
-                self.updateTransform()
-                self.addMotionEffect(self.motionEffectH)
-                self.addMotionEffect(self.motionEffectV)
-            }
-        } else {
-            coordinator.addCoordinatedAnimations {
-                self.updateTransform()
-                self.removeMotionEffect(self.motionEffectH)
-                self.removeMotionEffect(self.motionEffectV)
-            }
+        coordinator.addCoordinatedAnimations {
+            self.updateMotion()
         }
     }
 
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+
+    @objc private func updateMotion() {
+        removeMotionEffect(motionEffectH)
+        removeMotionEffect(motionEffectV)
+        updateTransform()
+        if isFocused, !usesSystemImageFocus, !UIAccessibility.isReduceMotionEnabled {
+            addMotionEffect(motionEffectH)
+            addMotionEffect(motionEffectV)
+        }
+    }
+
+    override func prepareForReuse() {
+        super.prepareForReuse()
+        removeMotionEffect(motionEffectH)
+        removeMotionEffect(motionEffectV)
+        transform = .identity
+        layer.shadowOpacity = 0
+    }
+
     func updateTransform() {
-        if isFocused {
+        if isFocused, !usesSystemImageFocus, !UIAccessibility.isReduceMotionEnabled {
             transform = CGAffineTransformMakeScale(scaleFactor, scaleFactor)
             let scaleDiff = (bounds.size.height * scaleFactor - bounds.size.height) / 2
             transform = CGAffineTransformTranslate(transform, 0, -scaleDiff)
