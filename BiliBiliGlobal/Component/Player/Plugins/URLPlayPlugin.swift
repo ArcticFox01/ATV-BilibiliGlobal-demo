@@ -10,6 +10,7 @@ import Foundation
 
 class URLPlayPlugin: NSObject {
     var onPlayFail: (() -> Void)?
+    var externalMetadata: [AVMetadataItem]?
 
     private weak var playerVC: AVPlayerViewController?
     private let referer: String
@@ -35,6 +36,9 @@ class URLPlayPlugin: NSObject {
         ]
         let asset = AVURLAsset(url: URL(string: urlString)!, options: ["AVURLAssetHTTPHeaderFieldsKey": headers])
         let playerItem = AVPlayerItem(asset: asset)
+        if let externalMetadata {
+            playerItem.externalMetadata = externalMetadata
+        }
         let player = AVPlayer(playerItem: playerItem)
         player.automaticallyWaitsToMinimizeStalling = !isLive
         playerVC?.player = player
