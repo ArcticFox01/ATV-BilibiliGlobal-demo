@@ -44,6 +44,14 @@ class LivePlayerViewModel {
     private let debugPlugin = DebugPlugin()
 
     func start() {
+        // Native Info must be available before the first frame, even while
+        // room details, artwork, or danmaku are still loading.
+        let fallbackDescription = room.area_v2_name.isEmpty ? room.title : room.area_v2_name
+        playPlugin.externalMetadata = [
+            AVPlayerMetaUtils.createMetadataItem(for: .commonIdentifierTitle, value: room.title),
+            AVPlayerMetaUtils.createMetadataItem(for: .iTunesMetadataTrackSubTitle, value: room.ownerName),
+            AVPlayerMetaUtils.createMetadataItem(for: .commonIdentifierDescription, value: fallbackDescription),
+        ].compactMap { $0 }
         playPlugin.onPlayFail = { [weak self] in
             self?.playerDidFailToPlay()
         }
@@ -55,13 +63,18 @@ class LivePlayerViewModel {
         onPluginReady?([playPlugin, debugPlugin])
         let fallbackInfoPlugin = BVideoInfoPlugin(title: room.title,
                                                   subTitle: room.ownerName,
-                                                  desp: nil,
+                                                  desp: fallbackDescription,
                                                   pic: room.pic,
                                                   viewPoints: nil)
         onPluginReady?([fallbackInfoPlugin])
         Task { [self] in
             do {
                 try await refreshRoomsID()
+                await MainActor.run {
+                    let plugin = LiveStatisticsPlugin(roomID: roomID)
+                    statisticsPlugin = plugin
+                    onPluginReady?([plugin])
+                }
                 async let detailedInfo = fetchDespInfo()
                 try await initPlayer()
 
@@ -143,6 +156,7 @@ class LivePlayerViewModel {
     private var roomID: Int
     private let room: LiveRoom
     private var danMuProvider: LiveDanMuProvider?
+    private var statisticsPlugin: LiveStatisticsPlugin?
     private var retryCount = 0
     private var isRecovering = false
 
@@ -242,6 +256,11 @@ class LivePlayerViewModel {
 
     @MainActor private func initDanmu() async -> [CommonPlayerPlugin] {
         danMuProvider = LiveDanMuProvider(roomID: roomID, removeDup: Settings.enableDanmuRemoveDup)
+        danMuProvider?.onStatisticsChanged = { [weak statisticsPlugin] watchedCount, likeCount in
+            DispatchQueue.main.async {
+                statisticsPlugin?.update(watchedCount: watchedCount, likeCount: likeCount)
+            }
+        }
         let danmuPlugin = DanmuViewPlugin(provider: danMuProvider!)
 
         try? await danMuProvider?.start()

@@ -18,6 +18,7 @@ class CommonPlayerViewController: UIViewController {
     private var playbackStalledObserver: Any?
     private var isEnd = false
     private var isRestoringFromPip = false
+    private var transportBarIsVisible = false
     /// 新 AVPlayerItem ready 后是否自动 play。换 CDN host 等场景可临时关掉，由调用方按用户暂停状态决定是否续播。
     var autoPlayWhenReady = true
     var showsPlaybackControls = true
@@ -65,6 +66,7 @@ class CommonPlayerViewController: UIViewController {
         plugin.addViewToPlayerOverlay(container: playerVC.contentOverlayView!)
         activePlugins.append(plugin)
         plugin.playerDidLoad(playerVC: playerVC)
+        plugin.playerTransportBarVisibilityDidChange(isVisible: transportBarIsVisible)
         if playerVC.transportBarCustomMenuItems.isEmpty == false {
             updateMenus()
         }
@@ -238,6 +240,16 @@ extension CommonPlayerViewController {
 }
 
 extension CommonPlayerViewController: AVPlayerViewControllerDelegate {
+    func playerViewController(_ playerViewController: AVPlayerViewController,
+                              willTransitionToVisibilityOfTransportBar visible: Bool,
+                              with coordinator: AVPlayerViewControllerAnimationCoordinator)
+    {
+        transportBarIsVisible = visible
+        coordinator.addCoordinatedAnimations({ [weak self] in
+            self?.activePlugins.forEach { $0.playerTransportBarVisibilityDidChange(isVisible: visible) }
+        }, completion: nil)
+    }
+
     @objc func playerViewControllerShouldDismiss(_ playerViewController: AVPlayerViewController) -> Bool {
         if let presentedViewController = UIViewController.topMostViewController() as? CommonPlayerViewController,
            presentedViewController.playerVC == playerViewController

@@ -41,15 +41,20 @@ class LiveViewController: CategoryViewController {
 }
 
 class MyLiveViewController: StandardVideoCollectionViewController<LiveRoom> {
+    private let thumbnailStatistics = LiveThumbnailStatisticsLoader()
+
     override func setupCollectionView() {
         super.setupCollectionView()
         collectionVC.styleOverride = .sideBar
         collectionVC.pageSize = 10
         reloadInterval = 15 * 60
+        thumbnailStatistics.attach(to: collectionVC)
     }
 
     override func request(page: Int) async throws -> [LiveRoom] {
-        try await WebRequest.requestLiveRoom(page: page)
+        let rooms = try await WebRequest.requestLiveRoom(page: page)
+        thumbnailStatistics.load(rooms: rooms)
+        return rooms
     }
 
     override func goDetail(with record: LiveRoom) {
@@ -60,6 +65,7 @@ class MyLiveViewController: StandardVideoCollectionViewController<LiveRoom> {
 }
 
 class AreaLiveViewController: StandardVideoCollectionViewController<AreaLiveRoom> {
+    private let thumbnailStatistics = LiveThumbnailStatisticsLoader()
     let areaID: Int
     init(areaID: Int) {
         self.areaID = areaID
@@ -76,15 +82,20 @@ class AreaLiveViewController: StandardVideoCollectionViewController<AreaLiveRoom
         collectionVC.styleOverride = .sideBar
         collectionVC.pageSize = 10
         reloadInterval = 15 * 60
+        thumbnailStatistics.attach(to: collectionVC)
     }
 
     override func request(page: Int) async throws -> [AreaLiveRoom] {
+        let rooms: [AreaLiveRoom]
         if areaID == 0 {
-            return try await WebRequest.requestHotLiveRoom(page: page)
+            rooms = try await WebRequest.requestHotLiveRoom(page: page)
         } else if areaID == -1 {
-            return try await WebRequest.requestRecommandLiveRoom(page: page)
+            rooms = try await WebRequest.requestRecommandLiveRoom(page: page)
+        } else {
+            rooms = try await WebRequest.requestAreaLiveRoom(area: areaID, page: page)
         }
-        return try await WebRequest.requestAreaLiveRoom(area: areaID, page: page)
+        thumbnailStatistics.load(rooms: rooms)
+        return rooms
     }
 
     override func goDetail(with record: AreaLiveRoom) {
@@ -94,7 +105,74 @@ class AreaLiveViewController: StandardVideoCollectionViewController<AreaLiveRoom
     }
 }
 
-struct LiveRoom: DisplayData, Codable {
+private protocol LiveThumbnailData {
+    var statisticsRoomID: Int { get }
+    var area_v2_name: String { get }
+    var watched_show: WebRequest.LiveStatistics.Watched? { get }
+}
+
+private final class LiveThumbnailStatisticsLoader {
+    private weak var collectionVC: FeedCollectionViewController?
+    private var statistics = [Int: WebRequest.LiveStatistics]()
+    private var lastRequestedAt = [Int: Date]()
+    private var pendingRoomIDs = [Int]()
+    private var tasks = [Int: Task<Void, Never>]()
+
+    deinit {
+        tasks.values.forEach { $0.cancel() }
+    }
+
+    func attach(to collectionVC: FeedCollectionViewController) {
+        self.collectionVC = collectionVC
+        collectionVC.overlayProvider = { [weak self] data in
+            guard let room = data as? any LiveThumbnailData else { return data.overlay }
+            return liveThumbnailOverlay(area: room.area_v2_name,
+                                        statistics: self?.statistics[room.statisticsRoomID],
+                                        watched: room.watched_show)
+        }
+    }
+
+    func load<T: LiveThumbnailData>(rooms: [T]) {
+        for room in rooms {
+            let roomID = room.statisticsRoomID
+            guard roomID > 0, tasks[roomID] == nil, !pendingRoomIDs.contains(roomID),
+                  lastRequestedAt[roomID].map({ Date().timeIntervalSince($0) >= 60 }) ?? true else { continue }
+            pendingRoomIDs.append(roomID)
+        }
+        startPendingRequests()
+    }
+
+    private func startPendingRequests() {
+        // Show the streams immediately and fill counts without replacing focused cards.
+        while tasks.count < 4, !pendingRoomIDs.isEmpty {
+            let roomID = pendingRoomIDs.removeFirst()
+            lastRequestedAt[roomID] = Date()
+            tasks[roomID] = Task { @MainActor [weak self] in
+                let info = try? await WebRequest.requestLiveStatistics(roomID: roomID)
+                guard !Task.isCancelled, let self else { return }
+                if let info {
+                    statistics[roomID] = info
+                    collectionVC?.refreshVisibleOverlays()
+                }
+                tasks[roomID] = nil
+                startPendingRequests()
+            }
+        }
+    }
+}
+
+private func liveThumbnailOverlay(area: String, statistics: WebRequest.LiveStatistics?, watched: WebRequest.LiveStatistics.Watched?) -> DisplayOverlay {
+    func countText(_ count: Int?) -> String {
+        guard let count, count >= 0 else { return "—" }
+        return count.formatted(.number.notation(.compactName).precision(.fractionLength(0...1)))
+    }
+    return DisplayOverlay(leftItems: [
+        .init(icon: "person.2", text: countText(statistics?.watched_show?.num ?? watched?.num)),
+        .init(icon: "hand.thumbsup", text: countText(statistics?.like_info_v3?.total_likes)),
+    ], badge: .init(color: UIColor.black.withAlphaComponent(0.65), text: area))
+}
+
+struct LiveRoom: DisplayData, Codable, LiveThumbnailData {
     let title: String
     let room_id: Int
     let uname: String
@@ -102,6 +180,9 @@ struct LiveRoom: DisplayData, Codable {
     let keyframe: String?
     let face: URL?
     let cover_from_user: URL?
+    var watched_show: WebRequest.LiveStatistics.Watched? = nil
+
+    var statisticsRoomID: Int { room_id }
 
     var ownerName: String { uname }
     var pic: URL? {
@@ -114,10 +195,11 @@ struct LiveRoom: DisplayData, Codable {
     var avatar: URL? { face }
 
     var overlay: DisplayOverlay? {
-        var leftItems = [DisplayOverlay.DisplayOverlayItem]()
-        leftItems.append(DisplayOverlay.DisplayOverlayItem(icon: nil, text: area_v2_name))
-        return DisplayOverlay(leftItems: leftItems)
+        liveThumbnailOverlay(area: area_v2_name, statistics: nil, watched: watched_show)
     }
+
+    static func == (lhs: LiveRoom, rhs: LiveRoom) -> Bool { lhs.room_id == rhs.room_id }
+    func hash(into hasher: inout Hasher) { hasher.combine(room_id) }
 }
 
 extension LiveRoom: PlayableData {
@@ -182,7 +264,7 @@ extension WebRequest {
     }
 }
 
-struct AreaLiveRoom: DisplayData, Codable, PlayableData {
+struct AreaLiveRoom: DisplayData, Codable, PlayableData, LiveThumbnailData {
     let title: String
     let roomid: Int
     let uname: String
@@ -192,6 +274,8 @@ struct AreaLiveRoom: DisplayData, Codable, PlayableData {
     let parent_name: String
     let area_name: String
     let area_v2_name: String
+    var watched_show: WebRequest.LiveStatistics.Watched? = nil
+    var statisticsRoomID: Int { roomid }
     var ownerName: String { uname }
     var pic: URL? { URL(string: system_cover) }
     var avatar: URL? { face }
@@ -199,13 +283,14 @@ struct AreaLiveRoom: DisplayData, Codable, PlayableData {
     var aid: Int { 0 }
 
     var overlay: DisplayOverlay? {
-        var leftItems = [DisplayOverlay.DisplayOverlayItem]()
-        leftItems.append(DisplayOverlay.DisplayOverlayItem(icon: nil, text: area_v2_name))
-        return DisplayOverlay(leftItems: leftItems)
+        liveThumbnailOverlay(area: area_v2_name, statistics: nil, watched: watched_show)
     }
 
+    static func == (lhs: AreaLiveRoom, rhs: AreaLiveRoom) -> Bool { lhs.roomid == rhs.roomid }
+    func hash(into hasher: inout Hasher) { hasher.combine(roomid) }
+
     func toLiveRoom() -> LiveRoom {
-        return LiveRoom(title: title, room_id: roomid, uname: uname, area_v2_name: area_v2_name, keyframe: system_cover.isEmpty ? nil : system_cover, face: face, cover_from_user: user_cover)
+        return LiveRoom(title: title, room_id: roomid, uname: uname, area_v2_name: area_v2_name, keyframe: system_cover.isEmpty ? nil : system_cover, face: face, cover_from_user: user_cover, watched_show: watched_show)
     }
 }
 
@@ -218,6 +303,7 @@ private struct LiveRecommendationRoom: Codable {
     let area_v2_parent_id: Int
     let area_v2_parent_name: String?
     let area_v2_name: String
+    let watched_show: WebRequest.LiveStatistics.Watched?
 
     func asAreaLiveRoom() -> AreaLiveRoom {
         AreaLiveRoom(title: title,
@@ -228,7 +314,8 @@ private struct LiveRecommendationRoom: Codable {
                      user_cover: URL(string: cover),
                      parent_name: area_v2_parent_name ?? "",
                      area_name: area_v2_name,
-                     area_v2_name: area_v2_name)
+                     area_v2_name: area_v2_name,
+                     watched_show: watched_show)
     }
 
     func asLiveRoom() -> LiveRoom {
@@ -238,6 +325,7 @@ private struct LiveRecommendationRoom: Codable {
                  area_v2_name: area_v2_name,
                  keyframe: cover,
                  face: face,
-                 cover_from_user: URL(string: cover))
+                 cover_from_user: URL(string: cover),
+                 watched_show: watched_show)
     }
 }

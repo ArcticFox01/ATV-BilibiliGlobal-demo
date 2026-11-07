@@ -94,6 +94,7 @@ class FeedCollectionViewController: UIViewController {
     var styleOverride: FeedDisplayStyle?
     var didSelect: ((any DisplayData) -> Void)?
     var didLongPress: ((any DisplayData) -> Void)?
+    var overlayProvider: ((any DisplayData) -> DisplayOverlay?)?
     var loadMore: (() -> Void)?
     var finished = false
     var pageSize = 20
@@ -126,6 +127,15 @@ class FeedCollectionViewController: UIViewController {
     private lazy var dataSource = makeDataSource()
 
     // MARK: - Public
+
+    func refreshVisibleOverlays() {
+        guard isViewLoaded else { return }
+        for indexPath in collectionView.indexPathsForVisibleItems {
+            guard let cell = collectionView.cellForItem(at: indexPath) as? FeedCollectionViewCell,
+                  let item = dataSource.itemIdentifier(for: indexPath) else { continue }
+            cell.updateOverlay(overlayProvider?(item.data) ?? item.data.overlay)
+        }
+    }
 
     func show(in vc: UIViewController) {
         vc.addChild(self)
@@ -246,6 +256,9 @@ class FeedCollectionViewController: UIViewController {
         DisplayCellRegistration { [weak self] cell, indexPath, displayData in
             cell.styleOverride = self?.styleOverride
             cell.setup(data: displayData.data)
+            if let overlayProvider = self?.overlayProvider {
+                cell.updateOverlay(overlayProvider(displayData.data))
+            }
             cell.onLongPress = {
                 self?.didLongPress?(displayData.data)
             }
