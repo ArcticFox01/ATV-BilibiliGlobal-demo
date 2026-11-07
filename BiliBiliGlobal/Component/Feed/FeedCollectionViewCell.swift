@@ -96,12 +96,7 @@ class FeedCollectionViewCell: BLMotionCollectionViewCell {
 
     func setup(data: any DisplayData) {
         titleLabel.text = data.title
-        if let overlay = data.overlay {
-            overlayView.isHidden = false
-            overlayView.configure(overlay)
-        } else {
-            overlayView.isHidden = true
-        }
+        updateOverlay(data.overlay)
         upLabel.text = [data.ownerName, data.date].compactMap({ $0 }).joined(separator: " · ")
         if var pic = data.pic {
             if pic.scheme == nil {
@@ -116,6 +111,13 @@ class FeedCollectionViewCell: BLMotionCollectionViewCell {
             avatarView.isHidden = true
         }
         updateStyle()
+    }
+
+    func updateOverlay(_ overlay: DisplayOverlay?) {
+        overlayView.isHidden = overlay == nil
+        if let overlay {
+            overlayView.configure(overlay)
+        }
     }
 
     override func didUpdateFocus(in context: UIFocusUpdateContext, with coordinator: UIFocusAnimationCoordinator) {

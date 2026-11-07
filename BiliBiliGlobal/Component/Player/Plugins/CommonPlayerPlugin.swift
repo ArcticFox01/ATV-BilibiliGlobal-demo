@@ -25,6 +25,7 @@ protocol CommonPlayerPlugin: NSObject {
     func playerDidStall(player: AVPlayer)
     func playerDidFail(player: AVPlayer)
     func playerDidCleanUp(player: AVPlayer)
+    func playerTransportBarVisibilityDidChange(isVisible: Bool)
 }
 
 extension CommonPlayerPlugin {
@@ -38,6 +39,7 @@ extension CommonPlayerPlugin {
     func playerDidStall(player: AVPlayer) {}
     func playerDidFail(player: AVPlayer) {}
     func playerDidCleanUp(player: AVPlayer) {}
+    func playerTransportBarVisibilityDidChange(isVisible: Bool) {}
 
     func playerDidLoad(playerVC: AVPlayerViewController) {}
     func playerDidDismiss(playerVC: AVPlayerViewController) {}

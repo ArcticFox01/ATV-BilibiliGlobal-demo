@@ -14,6 +14,7 @@ class LiveDanMuProvider: DanmuProviderProtocol {
     let observerPlayerTime = false
     let enableDanmuRemoveDup: Bool
     var onSendTextModel = PassthroughSubject<DanmakuTextCellModel, Never>()
+    var onStatisticsChanged: ((Int?, Int?) -> Void)?
 
     private var websocket: WebSocketRequest?
     private var heartBeatTimer: Timer?
@@ -133,6 +134,10 @@ extension LiveDanMuProvider {
             .forEach { json in
                 let cmd = json["cmd"].stringValue
                 switch cmd {
+                case "WATCHED_CHANGE":
+                    onStatisticsChanged?(json["data"]["num"].int, nil)
+                case "LIKE_INFO_V3_UPDATE":
+                    onStatisticsChanged?(nil, json["data"]["count"].int)
                 case "DANMU_MSG":
                     if let str = json["info"][1].string {
                         let model = DanmakuTextCellModel(str: str)
