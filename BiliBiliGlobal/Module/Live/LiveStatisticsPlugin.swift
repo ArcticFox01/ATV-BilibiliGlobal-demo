@@ -11,6 +11,7 @@ final class LiveStatisticsPlugin: NSObject, CommonPlayerPlugin {
     private let watchedBadge = LiveCountBadgeView(symbol: "person.2", name: "Watching")
     private let likesBadge = LiveCountBadgeView(symbol: "hand.thumbsup", name: "Likes")
     private let countRow = UIStackView()
+    private let infoBackground = makeLiveBadgeBackground()
     private weak var playerViewController: AVPlayerViewController?
     private var refreshTask: Task<Void, Never>?
     private var watchedRevision = 0
@@ -35,13 +36,37 @@ final class LiveStatisticsPlugin: NSObject, CommonPlayerPlugin {
 
     func playerDidLoad(playerVC: AVPlayerViewController) {
         playerViewController = playerVC
+        if #available(tvOS 26.6, *), infoBackground.superview == nil, let overlay = playerVC.contentOverlayView {
+            // The native bare Info title on Living Room (tvOS 26.6.1) is inset
+            // from the safe-area edge. Its visible center was measured 6 points
+            // right and below the original backdrop in the device photo.
+            let titleWidth = ("Info" as NSString).size(withAttributes: [
+                .font: UIFont.systemFont(ofSize: 28, weight: .semibold),
+            ]).width
+            overlay.addSubview(infoBackground)
+            infoBackground.snp.makeConstraints { make in
+                make.centerX.equalTo(playerVC.view.safeAreaLayoutGuide.snp.leading).offset(titleWidth / 2 + 6)
+                make.bottom.equalTo(playerVC.view.snp.bottom).offset(-38)
+                make.width.equalTo(108)
+                make.height.equalTo(64)
+            }
+        }
         if countRow.superview == nil {
             playerVC.view.addSubview(countRow)
             countRow.snp.makeConstraints { make in
-                make.leading.equalTo(playerVC.view.safeAreaLayoutGuide.snp.leading).offset(130)
-                make.bottom.equalToSuperview().offset(-44)
+                if infoBackground.superview != nil {
+                    make.leading.equalTo(infoBackground.snp.trailing).offset(24)
+                    make.centerY.equalTo(infoBackground)
+                } else {
+                    make.leading.equalTo(playerVC.view.safeAreaLayoutGuide.snp.leading).offset(130)
+                    make.bottom.equalToSuperview().offset(-44)
+                }
                 make.trailing.lessThanOrEqualTo(playerVC.view.safeAreaLayoutGuide.snp.trailing)
             }
+        }
+        if let overlay = playerVC.contentOverlayView {
+            watchedBadge.attachBackground(to: overlay)
+            likesBadge.attachBackground(to: overlay)
         }
         guard refreshTask == nil else { return }
         let roomID = roomID
@@ -69,6 +94,9 @@ final class LiveStatisticsPlugin: NSObject, CommonPlayerPlugin {
         refreshTask = nil
         playerViewController = nil
         countRow.removeFromSuperview()
+        infoBackground.removeFromSuperview()
+        watchedBadge.removeBackground()
+        likesBadge.removeBackground()
     }
 
     func playerTransportBarVisibilityDidChange(isVisible: Bool) {
@@ -76,6 +104,9 @@ final class LiveStatisticsPlugin: NSObject, CommonPlayerPlugin {
             playerViewController?.view.bringSubviewToFront(countRow)
         }
         countRow.alpha = isVisible ? 1 : 0
+        infoBackground.isHidden = !isVisible
+        watchedBadge.setControlsVisible(isVisible)
+        likesBadge.setControlsVisible(isVisible)
     }
 
     func update(watchedCount: Int?, likeCount: Int?) {
@@ -92,15 +123,24 @@ final class LiveStatisticsPlugin: NSObject, CommonPlayerPlugin {
     }
 }
 
-private final class LiveCountBadgeView: UIVisualEffectView {
+private func makeLiveBadgeBackground() -> UIVisualEffectView {
+    let background = UIVisualEffectView(effect: UIBlurEffect(style: .dark))
+    background.layer.cornerRadius = 32
+    background.clipsToBounds = true
+    background.isUserInteractionEnabled = false
+    background.isHidden = true
+    return background
+}
+
+private final class LiveCountBadgeView: UIView {
     private let valueLabel = UILabel()
+    private let backgroundView = makeLiveBadgeBackground()
     private let name: String
+    private var controlsAreVisible = false
 
     init(symbol: String, name: String) {
         self.name = name
-        super.init(effect: UIBlurEffect(style: .dark))
-        layer.cornerRadius = 32
-        clipsToBounds = true
+        super.init(frame: .zero)
         isHidden = true
         isAccessibilityElement = true
 
@@ -113,7 +153,7 @@ private final class LiveCountBadgeView: UIVisualEffectView {
         let content = UIStackView(arrangedSubviews: [imageView, valueLabel])
         content.alignment = .center
         content.spacing = 8
-        contentView.addSubview(content)
+        addSubview(content)
         content.snp.makeConstraints { make in
             make.leading.trailing.equalToSuperview().inset(24)
             make.centerY.equalToSuperview()
@@ -126,9 +166,27 @@ private final class LiveCountBadgeView: UIVisualEffectView {
         fatalError("init(coder:) has not been implemented")
     }
 
+    func attachBackground(to overlay: UIView) {
+        guard backgroundView.superview == nil else { return }
+        // Keep all capsule materials below AVKit's controls; only the foreground
+        // icons and counts fade, so blur views never inherit a partial alpha.
+        overlay.addSubview(backgroundView)
+        backgroundView.snp.makeConstraints { $0.edges.equalTo(self) }
+    }
+
+    func removeBackground() {
+        backgroundView.removeFromSuperview()
+    }
+
+    func setControlsVisible(_ visible: Bool) {
+        controlsAreVisible = visible
+        backgroundView.isHidden = !visible || isHidden
+    }
+
     func update(count: Int?) {
         guard let count else { return }
         isHidden = false
+        backgroundView.isHidden = !controlsAreVisible
         valueLabel.text = count.formatted(.number.notation(.compactName).precision(.fractionLength(0...1)))
         accessibilityLabel = "\(count.formatted()) \(name)"
     }
