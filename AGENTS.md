@@ -1,161 +1,55 @@
-## Project Overview
+# Repository Guidelines
 
-tvOS (Apple TV) client for the BiliBili video streaming platform. Written in Swift 5.0+, targeting tvOS 16.0+. Unsigned IPA builds are distributed via GitHub Releases (nightly tag).
+Swift 5+ client for BiliBili on Apple TV, targeting tvOS 16+. Dependencies use Swift Package Manager.
 
-## Build Commands
+## Project Structure
+
+- `BiliBiliGlobal/Module/`: screens for navigation, feeds, Anime, live streams, accounts, and DLNA.
+- `BiliBiliGlobal/Component/`: reusable UI, feeds, video playback, danmaku, and player plugins.
+- `BiliBiliGlobal/Request/`: networking, endpoint signing, cookies, and Protobuf models.
+- `BiliBiliGlobal/Supporting Files/`: assets and launch storyboard.
+- `DanmakuKit/`, `PocketSVG/`: vendored libraries. `fastlane/`: build automation.
+
+## Build and Run
+
+Open `BiliBiliGlobal.xcodeproj` in Xcode for development and debugging.
 
 ```bash
-# Build for tvOS Simulator
-fastlane build_simulator
-
-# Build unsigned IPA for Apple TV
-fastlane build_unsign_ipa
+fastlane build_simulator   # Build for tvOS Simulator
+fastlane build_unsign_ipa  # Build unsigned IPA for distribution
 ```
 
-There is no test suite. Build verification happens through the Xcode project. Use Xcode directly for development and debugging.
-
-For a physical Apple TV deployment, discover the connected device and build a signed app using the Release configuration. Use Release for physical device installations unless explicitly asked to debug. Substitute its UDID below; the unsigned IPA lane is for distribution, not direct device installation.
+Physical Apple TV installations require a signed **Release** build unless debugging is explicitly requested. Replace `<UDID>` with a connected device ID:
 
 ```bash
 xcrun devicectl list devices
-xcodebuild -project BiliBiliGlobal.xcodeproj -scheme BiliBiliGlobal -configuration Release \
-  -destination 'platform=tvOS,id=<DEVICE_UDID>' \
+xcodebuild -project BiliBiliGlobal.xcodeproj -scheme BiliBiliGlobal \
+  -configuration Release -destination 'platform=tvOS,id=<UDID>' \
   -derivedDataPath /tmp/ATV-BilibiliGlobal-device -allowProvisioningUpdates build
-xcrun devicectl device install app --device '<DEVICE_UDID>' \
+xcrun devicectl device install app --device '<UDID>' \
   /tmp/ATV-BilibiliGlobal-device/Build/Products/Release-appletvos/BiliBiliGlobal.app
-xcrun devicectl device process launch --device '<DEVICE_UDID>' \
+xcrun devicectl device process launch --device '<UDID>' \
   --terminate-existing com.etan.tv.BiliBiliGlobal
 ```
 
-## Architecture
+## Coding Conventions
 
-The app uses a layered architecture with a factory-based navigation system:
+Use four-space indentation, `UpperCamelCase` types, and `lowerCamelCase` methods and properties. Match surrounding Swift style; no repository-wide formatter or linter is configured.
 
-**Entry Point:** `AppDelegate.swift` checks login state and routes to either `LoginViewController` (QR code auth) or `BLTabBarViewController`.
+Reuse `BLButton.onPrimaryAction`, `BLMotionCollectionViewCell`, and `StandardVideoCollectionViewController`. Extend playback through `CommonPlayerPlugin`. Preserve native focus animations, saved tab order, and account-specific state.
 
-**Module Layer** (`BiliBiliGlobal/Module/`) — Feature-specific view controllers:
-- `Tabbar/` — Root navigation; `BLTabBarViewController` uses `TabBarPageFactory` to create tab VCs dynamically based on user-customizable ordering
-- `Live/` — Live stream playback with `LiveDanMuProvider` for real-time danmaku over WebSocket + Brotli decompression
-- `Personal/` — User account, search, follows, history, settings, tab customization
-- `ViewController/` — Feed, hot, favorites, rankings, Anime home and category browser
-- `DLNA/` — UPnP Digital Media Renderer (`BiliBiliUpnpDMR`) for casting
+## Validation
 
-**Component Layer** (`BiliBiliGlobal/Component/`) — Reusable subsystems:
-- `Player/` — `CommonPlayerViewController` is the base player. `BilibiliVideoResourceLoaderDelegate` implements custom MPEG-DASH resource loading (fetches manifests, parses SIDX segments, rewrites URLs for AVPlayer)
-- `Video/` — `VideoPlayerViewController` + `VideoPlayerViewModel` for regular video; `VideoDanmuProvider` + `VideoDanmuFilter` for video danmaku; `MaskProvider/` for danmaku anti-blocking
-- `Feed/` — `FeedCollectionViewController` / `FeedCollectionViewCell` for content discovery grids
-- `CommonPlayer/` — Local SPM package with shared player utilities
+There is no automated test suite or coverage requirement. Build the Xcode project and manually exercise affected screens, focus navigation, and playback. For Anime changes, verify live API responses, combined filters/reset, pagination, schedule routing, and account switching.
 
-**Request Layer** (`BiliBiliGlobal/Request/`) — All API communication:
-- `WebRequest.swift` — Core HTTP layer (Alamofire-based)
-- `WebRequest+WbiSign.swift` — Request signing extension
-- `WebRequest+Anime.swift` — Overseas Android Anime home, schedule, catalog filters, and account watch history
-- `ApiRequest.swift` — Endpoint definitions, token refresh, MD5 signing, error handling (code `-101` = token expired)
-- `dm.pb.swift` / `dmView.pb.swift` — Protobuf models for danmaku
-- `CookieManager.swift` — Session/cookie persistence
+## Integration Safeguards
 
-**Account Management:** `AccountManager.swift` handles multi-account state and session tokens.
+- Keep Anime on Bilibili.com with shared cookies/access keys and the Android profile (`android_i`); do not apply `ApiRequest.sign` or mix Bilibili.tv IDs.
+- Use overseas Anime home/catalog endpoints and API-provided filters. Honor `has_next`, season routes for unpublished episodes, and authoritative PGC metadata.
+- Keep unsupported AVC Level 5.2 renditions disabled in quality menus and excluded from generated playlists; preserve compatible HEVC options.
+- WebVTT must include `X-TIMESTAMP-MAP=LOCAL:00:00:00.000,MPEGTS:0`. Emit cues by start time without changing timestamps or overlaps.
+- Keep credentials, captured API responses, APK research, and temporary scripts outside the repository.
 
-**Vendor:** `DanmakuKit/` (danmaku rendering engine), `PocketSVG/` (SVG parsing).
+## Commits and Pull Requests
 
-## Key Dependencies (SPM)
-
-- `Alamofire` — HTTP networking
-- `SwiftyJSON` — JSON parsing
-- `SwiftProtobuf` — Danmaku protocol buffers
-- `Kingfisher` — Image caching
-- `SnapKit` — Auto-layout
-- `CocoaLumberjack` / `CocoaLumberjackSwift` — Logging
-- `CocoaAsyncSocket` — TCP/UDP for DLNA
-- `Gzip` — Compression
-- `Swifter` (custom fork) — HTTP server for casting receiver
-
-## Reusable UI Components (`Component/View/`)
-
-All interactive cells and buttons are built for tvOS focus engine — expect scale/parallax animations on focus as a baseline.
-
-**`BLButton`** — Base `UIControl` with blur background and focus-driven parallax + shadow. Use `onPrimaryAction` callback instead of `addTarget`.
-- **`BLCustomButton`** — Adds image + title label below, `isOn` toggle state, three image states (default / on / highlighted). IBDesignable.
-- **`BLCustomTextButton`** — Text-only variant; changes color on focus. Carries an optional `object: Any?` for associated data.
-
-**`BLMotionCollectionViewCell`** — Base `UICollectionViewCell` providing parallax tilt + scale-on-focus. All feed/settings cells subclass this. Override `setup()` for layout and set `scaleFactor` for zoom intensity.
-- **`BLSettingLineCollectionViewCell`** — Horizontal card, 40pt font, exposes `makeLayout()` static method returning a ready-made `NSCollectionLayoutSection` (70pt height, 0.9 group width).
-- **`BLTextOnlyCollectionViewCell`** — Dark blur card, centered multi-line label. scaleFactor = 1.15.
-
-**`BLOverlayView`** — Gradient overlay for feed cards. Call `configure(_ overlay: DisplayOverlay)` with left/right `DisplayOverlayItem` arrays (SF Symbol icon + text) and an optional colored badge. Used inside `FeedCollectionViewCell`.
-
-## Feed System (`Component/Feed/`)
-
-**`FeedCollectionViewController`** — Generic paginated feed controller backed by `UICollectionViewDiffableDataSource`.
-
-Key points for subclassing / use:
-- Items conform to **`DisplayData`** protocol: `title`, `ownerName`, `pic` (required); `avatar`, `date`, `overlay: DisplayOverlay?` (optional).
-- Use **`AnyDispplayData`** (type-erased wrapper) to mix heterogeneous `DisplayData` types in one feed.
-- Set `displayDatas` to replace content (auto-deduplicates); call `appendData(displayData:)` for pagination.
-- Auto-triggers `loadMore` callback when <12 items remain.
-- Attach a `customHeaderConfig: FeedHeaderConfig` for section headers.
-- Override `FeedDisplayStyle` per instance: `.large` (3 cols), `.normal` (4 cols), `.sideBar` (3 cols narrow).
-
-**`StandardVideoCollectionViewController`** — Preferred base class for any video list screen. Generic over `PlayableData` (= `DisplayData` + `aid`/`cid`). Override `request(page:) async` to supply data; the base class handles pagination, 60-minute auto-reload, and navigation to `VideoDetailViewController` on selection. Adjust `reloadInterval` if needed.
-
-**`FeedCollectionViewCell`** — 16:9 image card with `BLOverlayView`, optional avatar, `MarqueeLabel` title (auto-scrolls when focused), creator + date line. Images loaded via Kingfisher at 360×202. Set `onLongPress` for context menus.
-
-## Anime Browsing
-
-**Entry points:** `AnimeViewController.swift` contains the home, Categories browser, and paginated catalog controller. `AnimeArtworkCell.swift` contains artwork and focusable menu cells. Anime defaults immediately after For You; insert it into existing saved placements without resetting user customization.
-
-- **Service and login:** Match the Android package `com.bilibili.app.in`, which uses Bilibili.com APIs and the app's existing account. Reuse the current `access_key` when available and shared cookies, including cookie-only QR accounts. Bilibili.tv is a separate service; its credentials and season/episode IDs are not interchangeable with these APIs.
-- **Request profile:** `requestAnime` preserves `mobi_app=android_i`, `platform=android`, the Android build, and English locale parameters. Do not run these requests through `ApiRequest.sign`, which overwrites the profile with the legacy iPhone value.
-- **Home:** Use `/pgc/page/channel?page_name=bangumi_tab`. Read featured banners from `OVERSEA_BANNER`, Popular anime from `DOUBLE_FEED`, and schedule days from `MIX_TIMELINE`. The legacy `/pgc/page` feed can return mainland content even with an English locale. Banner season IDs come from `report.season_id`; `oid` can be a material ID. Fetch season metadata for banner titles.
-- **Categories:** Use `/x/overseas/pgc/season/index/{condition,result}` with `index_type=103&type=0`, matching the Android overseas category page. `season_type=1` excludes most Chinese animation and some style options. Load sort choices, filter names, values, and defaults from the condition endpoint; pass combined selections to the result endpoint. Preserve the selected order's `sort` value. Do not hardcode category lists or result counts.
-- **Pagination:** Catalog requests use 24 items per page and honor `has_next`. Verify later pages contain new entries, especially when filtering Mainland China. Check all filter dimensions when changing the request scope: style, region, type, payment, copyright, completion status, year, quarter, and dubbing.
-- **Schedule:** Dates, today markers, release times, titles, and links come from the API. Show `pub_index` (for example, "Updated 1 episodes") above `new_ep.index_show` ("Updated to episode XX"); keep both lines visible. The release-time badge uses `pub_time`.
-- **Upcoming episodes:** A schedule entry can have a reserved `ep_id` before publication while its URL points to `/bangumi/play/ss{seasonID}`. Honor that season route; requesting the reserved episode returns not found. Published episode links retain their episode route.
-- **Details and playback:** Reuse `VideoDetailViewController` and the existing native player/plugins. PGC season metadata remains authoritative regardless of its language; do not fall back to regular-video details based on whether text looks English.
-- **Continue watching:** Resolve history `epid` to its season; history `oid` may be a video ID. Include anime/Chinese-animation season types 1 and 4, deduplicate seasons, and skip unavailable records. Reload account-specific content when the active account changes.
-
-When changing Anime behavior, verify live API responses and exercise native focus, combined filters/reset, pagination, schedule routing, and playback. Keep APK research, captured responses, credentials, and temporary verification scripts outside the repository.
-
-## Player Plugin Architecture (`Component/Player/`)
-
-**`CommonPlayerViewController`** wraps `AVPlayerViewController` and owns a list of `CommonPlayerPlugin` objects.
-
-```swift
-playerVC.addPlugin(plugin: MyPlugin())
-playerVC.updateMenus()   // rebuilds AVPlayerViewController info panel menus from all plugins
-```
-
-**`CommonPlayerPlugin`** protocol — all methods have empty default implementations, so adopt only what you need:
-
-| Method | When called |
-|---|---|
-| `playerDidLoad(playerVC:)` | Player container appeared |
-| `playerDidChange(player:)` | AVPlayer instance swapped |
-| `playerItemDidChange(playerItem:)` | New AVPlayerItem loaded |
-| `playerWillStart` / `playerDidStart` | Playback begins |
-| `playerDidPause` / `playerDidEnd` / `playerDidFail` | State transitions |
-| `playerDidCleanUp` | Player teardown |
-| `addViewToPlayerOverlay(container:)` | Add UI on top of video |
-| `addMenuItems(current:)` | Contribute items to info panel menu |
-
-**Existing plugins** (all in `Component/Player/`):
-
-| Plugin | Purpose |
-|---|---|
-| `URLPlayPlugin` | Sets up AVPlayer from URL with custom HTTP headers; `isLive` flag disables stall recovery |
-| `DanmuViewPlugin` | Renders danmaku via `DanmakuKit`; requires a `DanmuProviderProtocol`; adds menu items for visibility, duration (4/6/8s), AI filter level |
-| `SpeedChangerPlugin` | Playback speed (0.5×–2×) with pitch correction; persists to `Settings.mediaPlayerSpeed` |
-| `SponsorSkipPlugin` | Fetches SponsorBlock segments; two modes: auto-jump (5s preview) or manual tip button |
-| `MaskViewPlugin` | Delivers pixel buffers for danmaku anti-blocking masks via `MaskProvider` |
-| `DebugPlugin` | Overlay with bitrate, stall count, dropped frames; toggled via info panel menu |
-
-**Settings** (`Settings.swift`) — Global user preferences accessed via `@UserDefault` / `@UserDefaultCodable` property wrappers. Observable values (e.g. `Defaults.shared.$showDanmu`) integrate with Combine for reactive UI.
-
-## Important Patterns
-
-- **DASH Playback:** `BilibiliVideoResourceLoaderDelegate` intercepts `bilibili://` scheme URLs registered with AVPlayer, fetches real DASH manifests from Bilibili API, and serves segments. This is the core of video playback quality selection.
-- **Quality compatibility:** Bilibili can expose 4K60 AVC `avc1.640034` (H.264 High Profile Level 5.2, about 21.7 Mbps). tvOS supports H.264 only through High Profile Level 5.1, and the stream stops immediately on Apple TV. Keep this rendition visible in `BVideoQualityPlugin` as `AVC … Mbps (Unsupported)` with a disabled action; `BilibiliVideoResourceLoaderDelegate` must also filter it defensively before building the HLS playlist. Keep compatible HEVC 4K streams selectable.
-- **HLS subtitles:** `BilibiliVideoResourceLoaderDelegate` converts Bilibili JSON/ASS subtitles into HLS WebVTT. The generated body must include `X-TIMESTAMP-MAP=LOCAL:00:00:00.000,MPEGTS:0`, and cues must be emitted in nondecreasing start-time order. ASS input order is not reliable: styled screen-title cues can appear before earlier dialogue cues. Preserve each cue's source timestamps and overlaps; sort only their emission order. If AVFoundation logs `WebVTTSamples ... -16012`, inspect ordering before changing subtitle text or language selection.
-- **Danmaku:** Video danmaku uses Protobuf (`dm.pb.swift`); live danmaku uses a custom WebSocket protocol with Brotli-compressed payloads parsed in `LiveDanMuProvider`.
-- **Request Signing:** Apply the signing required by each endpoint: MD5 signing through `ApiRequest` and WBI signing through `WebRequest+WbiSign` where appropriate. Anime read endpoints use the shared session and Android profile described above; do not apply a signer that changes that profile.
-- **Tab Customization:** Tab order is stored in `UserDefaults` and read by `BLTabBarViewController` via the factory pattern at launch.
+Follow existing prefixes such as `feat:`, `fix:`, and `docs:` with a concise description. Keep changes focused. PRs should explain behavior changes, link relevant issues, report build/manual validation, and include screenshots for UI changes.
