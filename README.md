@@ -28,6 +28,41 @@ Nightly, unsigned IPAs are available from https://github.com/ArcticFox01/ATV-Bil
 
 To run the app on your own Apple TV, open `BiliBiliGlobal.xcodeproj` in Xcode, select the app target, choose your own signing team under **Signing & Capabilities**, then select your connected Apple TV and run the app. Xcode creates a development provisioning profile that is valid only for devices registered to that team.
 
+Once signing is configured, build and deploy from Terminal on your Mac:
+
+1. Open a terminal in the repository root and build the signed app. The default configuration is **Release**:
+
+   ```bash
+   ./build.sh
+   ```
+
+   The app is written to `/tmp/ATV-BilibiliGlobal-device/Build/Products/Release-appletvos/BiliBiliGlobal.app`.
+
+2. Pair your Apple TV with Xcode, make sure it is reachable, and list the available devices:
+
+   ```bash
+   xcrun devicectl list devices
+   ```
+
+   Copy your Apple TV's UUID from the **Identifier** column.
+
+3. Install and launch the Release build, replacing `YOUR-DEVICE-UUID` with that identifier:
+
+   ```bash
+   ./deploy.sh "YOUR-DEVICE-UUID"
+   ```
+
+   Deployment installs the existing build and restarts the app. Run `./build.sh` again after changing source code, then deploy again.
+
+For debugging, explicitly select **Debug** in both steps:
+
+```bash
+./build.sh Debug
+./deploy.sh "YOUR-DEVICE-UUID" Debug
+```
+
+Both scripts support `--help`. They can also be called from any working directory using their full paths.
+
 Do not use this repository to share certificates, private keys, provisioning profiles, or App Store Connect keys. Keep signing assets in your Keychain and, if needed for CI, in encrypted GitHub Actions secrets.
 
 For distributing the app beyond your own registered devices, use one of Apple's supported paths:
