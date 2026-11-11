@@ -167,11 +167,7 @@ class BVideoPlayPlugin: NSObject, CommonPlayerPlugin {
         self.playerVC = playerVC
         // Use our session selection menu; AVKit's automatic language mode can
         // show On even when the item's legible selection is empty.
-        if #available(tvOS 26.0, *) {
-            playerVC.allowedSubtitleOptionLanguages = []
-        } else {
-            playerVC.allowedSubtitleOptionLanguages = nil
-        }
+        playerVC.allowedSubtitleOptionLanguages = []
         playerVC.player = nil
         attemptedHDRCompatibilityFallback = false
         attemptedBandwidthCompatibilityFallback = false
@@ -292,8 +288,7 @@ class BVideoPlayPlugin: NSObject, CommonPlayerPlugin {
                                           })
             current[index] = setting.replacingChildren(setting.children + [action, subtitlePosition])
         }
-        guard #available(tvOS 26.0, *),
-              let item = playerVC?.player?.currentItem,
+        guard let item = playerVC?.player?.currentItem,
               let group = item.asset.mediaSelectionGroup(forMediaCharacteristic: .legible),
               !group.options.isEmpty
         else { return [] }
@@ -303,27 +298,38 @@ class BVideoPlayPlugin: NSObject, CommonPlayerPlugin {
             self?.updateSubtitleMenu()
         }
         let languages = group.options.map { option in
-            UIAction(title: option.displayName, state: selected == option ? .on : .off) { [weak self, weak item] _ in
+            UIAction(title: subtitleDisplayName(for: option), state: selected == option ? .on : .off) { [weak self, weak item] _ in
                 item?.select(option, in: group)
                 self?.updateSubtitleMenu()
             }
         }
         let selection = UIMenu(title: "Subtitles", options: [.displayInline, .singleSelection], children: [off] + languages)
-        let activeProfile = MACaptionAppearanceCopyActiveProfileID() as String
-        let profiles = MACaptionAppearanceCopyProfileIDs() as? [String] ?? []
-        let styles = profiles.map { profile in
-            UIAction(title: MACaptionAppearanceCopyProfileName(profile as CFString) as String,
-                     state: profile == activeProfile ? .on : .off)
-            { [weak self] _ in
-                MACaptionAppearanceSetActiveProfileID(profile as CFString)
-                self?.updateSubtitleMenu()
+        var children: [UIMenuElement] = [selection]
+        if #available(tvOS 26.0, *) {
+            let activeProfile = MACaptionAppearanceCopyActiveProfileID() as String
+            let profiles = MACaptionAppearanceCopyProfileIDs() as? [String] ?? []
+            let styles = profiles.map { profile in
+                UIAction(title: MACaptionAppearanceCopyProfileName(profile as CFString) as String,
+                         state: profile == activeProfile ? .on : .off)
+                { [weak self] _ in
+                    MACaptionAppearanceSetActiveProfileID(profile as CFString)
+                    self?.updateSubtitleMenu()
+                }
             }
+            children.append(UIMenu(title: "Style", options: .singleSelection, children: styles))
         }
-        let style = UIMenu(title: "Style", options: .singleSelection, children: styles)
         return [UIMenu(title: "Subtitles",
                        image: UIImage(systemName: "captions.bubble"),
                        identifier: UIMenu.Identifier(rawValue: "subtitles"),
-                       children: [selection, style])]
+                       children: children)]
+    }
+
+    private func subtitleDisplayName(for option: AVMediaSelectionOption) -> String {
+        let name = option.displayName
+        guard option.hasMediaCharacteristic(BilibiliVideoResourceLoaderDelegate.aiSubtitleCharacteristic),
+              !name.hasSuffix(" (AI)")
+        else { return name }
+        return name + " (AI)"
     }
 
     private func updateSubtitleMenu() {
@@ -359,9 +365,9 @@ class BVideoPlayPlugin: NSObject, CommonPlayerPlugin {
             case let .selected(selection):
                 let option = group.options.first {
                     $0.locale?.identifier == selection.localeIdentifier
-                        && $0.displayName == selection.displayName
+                        && subtitleDisplayName(for: $0) == selection.displayName
                 }
-                    ?? group.options.first(where: { $0.displayName == selection.displayName })
+                    ?? group.options.first(where: { subtitleDisplayName(for: $0) == selection.displayName })
                     ?? group.options.first(where: { $0.locale?.identifier == selection.localeIdentifier })
                 if let option {
                     item.select(nil, in: group)
@@ -385,7 +391,7 @@ class BVideoPlayPlugin: NSObject, CommonPlayerPlugin {
             return
         }
         pendingSubtitleSelection = .selected(SubtitleSelection(localeIdentifier: option.locale?.identifier,
-                                                               displayName: option.displayName))
+                                                               displayName: subtitleDisplayName(for: option)))
     }
 
     private func probeCDN() {
