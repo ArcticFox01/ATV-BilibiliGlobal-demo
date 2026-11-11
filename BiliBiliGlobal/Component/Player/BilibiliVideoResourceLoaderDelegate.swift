@@ -13,6 +13,8 @@ import SwiftyJSON
 import UIKit
 
 class BilibiliVideoResourceLoaderDelegate: NSObject, AVAssetResourceLoaderDelegate {
+    static let aiSubtitleCharacteristic = AVMediaCharacteristic(rawValue: "com.etan.tv.BiliBiliGlobal.ai-subtitle")
+
     enum URLs {
         static let customScheme = "atv"
         static let customPrefix = customScheme + "://list/"
@@ -355,10 +357,15 @@ class BilibiliVideoResourceLoaderDelegate: NSObject, AVAssetResourceLoaderDelega
     }
 
     private func addSubtitleData(lang: String, name: String, duration: Int, url: String) {
-        let language = lang.hasPrefix("ai-") ? String(lang.dropFirst(3)) : lang
+        let isAI = lang.hasPrefix("ai-")
+        let language = isAI ? String(lang.dropFirst(3)) : lang
+        let displayName = isAI ? name + " (AI)" : name
+        // AVFoundation can localize LANGUAGE instead of displaying NAME. Carry
+        // the AI flag separately so the subtitle menu can retain the suffix.
+        let characteristics = isAI ? ",CHARACTERISTICS=\"\(Self.aiSubtitleCharacteristic.rawValue)\"" : ""
 
         let master = """
-        #EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",LANGUAGE="\(language)",NAME="\(name)",AUTOSELECT=NO,DEFAULT=NO,URI="\(URLs.customPrefix)\(playlists.count)"
+        #EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",LANGUAGE="\(language)",NAME="\(displayName)"\(characteristics),AUTOSELECT=NO,DEFAULT=NO,URI="\(URLs.customPrefix)\(playlists.count)"
 
         """
         masterPlaylist.append(master)
